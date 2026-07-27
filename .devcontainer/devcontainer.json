@@ -1,0 +1,24 @@
+{
+	"name": "Coral NPU",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": ".."
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"bazelbuild.vscode-bazel",
+				"hudson-river-trading.vscode-slang",
+				"ms-python.python",
+				"ms-vscode.cpptools",
+				"mshr-h.veriloghdl",
+				"timonwong.shellcheck"
+			],
+			"settings": {
+				"bazel.bazelPath": "/usr/local/bin/bazel",
+				"python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+				"python.terminal.activateEnvironment": true
+			}
+		}
+	}
+}
