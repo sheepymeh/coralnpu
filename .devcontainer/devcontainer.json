@@ -15,8 +15,7 @@
 				"timonwong.shellcheck"
 			],
 			"settings": {
-				"bazel.bazelPath": "/usr/local/bin/bazel",
-				"python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+				"bazel.bazelPath": "/usr/bin/bazel",
 				"python.terminal.activateEnvironment": true
 			}
 		}
