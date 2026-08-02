@@ -19,4 +19,10 @@ RUN wget -qO /tmp/bazelisk-amd64.deb \
         /tmp/bazelisk-amd64.deb \
     && rm -rf /var/lib/apt/lists/* /tmp/bazelisk-amd64.deb
 
+RUN wget -qO - https://github.com/hudson-trading/slang-server/releases/latest/download/slang-server-linux-x64.tar.gz \
+    | tar -xzC /usr/local/bin ./slang-server
+RUN wget -qO /usr/local/bin/buildifier \
+    https://github.com/bazelbuild/buildtools/releases/latest/download/buildifier-linux-amd64 \
+    && chmod a+x /usr/local/bin/buildifier
+
 USER vscode
