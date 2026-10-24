@@ -35,3 +35,6 @@ dispatch.log
 *.pb
 *.wdb
 *.cache
+/.metals/
+.bazel*
+.bsp/

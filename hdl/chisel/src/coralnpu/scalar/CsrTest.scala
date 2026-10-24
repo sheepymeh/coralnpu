@@ -67,6 +67,81 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
     dut.io.rs1.data.poke(0.U)
   }
 
+  for (xlen <- Seq(32, 64)) {
+    s"RV$xlen cycle and retirement counter inhibition" in {
+      val parameters = new Parameters(xlen = xlen)
+      parameters.enableFloat = true
+      parameters.enableRvv = true
+      parameters.enableVerification = true
+      simulate(new Csr(parameters)) { dut =>
+        initDut(dut)
+        dut.clock.step()
+
+        // Use CSRRS with rs1=x0 for reads, CSRRW for writes
+        def access_csr(address: CsrAddress.Type, value: Option[BigInt] = None): BigInt = {
+          dut.io.req.valid.poke(true.B)
+          dut.io.req.bits.index.poke(address.litValue.U)
+          dut.io.req.bits.op.poke(if (value.isDefined) CsrOp.CSRRW else CsrOp.CSRRS)
+          dut.io.req.bits.rs1.poke((if (value.isDefined) 5 else 0).U)
+          dut.io.rs1.data.poke(value.getOrElse(BigInt(0)).U)
+          dut.clock.step()
+          dut.io.trace.valid.expect(value.isDefined.B)
+          val result =
+            if (value.isDefined) dut.io.trace.data.peek().litValue
+            else dut.io.rd.bits.data.peek().litValue
+          dut.io.req.valid.poke(false.B)
+          dut.clock.step()
+          result
+        }
+
+        // Check reset value, writable-bit masking, and inhibition of both counters
+        assert(access_csr(CsrAddress.MCOUNTINHIBIT) == 0)
+        assert(access_csr(CsrAddress.MCOUNTINHIBIT, Some((BigInt(1) << xlen) - 1)) == 5)
+        val cycles = access_csr(CsrAddress.MCYCLE)
+        dut.io.counters.nRetired.poke(2.U)
+        dut.clock.step(3)
+        dut.io.counters.nRetired.poke(0.U)
+        assert(access_csr(CsrAddress.MCYCLE) == cycles)
+        assert(access_csr(CsrAddress.MINSTRET) == 0)
+
+        // Counter writes remain effective while counting is inhibited
+        access_csr(CsrAddress.MCYCLE, Some(10))
+        access_csr(CsrAddress.MINSTRET, Some(20))
+        assert(access_csr(CsrAddress.MCYCLE) == 10)
+        assert(access_csr(CsrAddress.MINSTRET) == 20)
+
+        // Clear CY independently while IR keeps retirement count frozen
+        access_csr(CsrAddress.MCOUNTINHIBIT, Some(4))
+        dut.io.counters.nRetired.poke(2.U)
+        dut.clock.step(3)
+        dut.io.counters.nRetired.poke(0.U)
+        assert(access_csr(CsrAddress.MCYCLE) > 10)
+        assert(access_csr(CsrAddress.MINSTRET) == 20)
+
+        // Unfreezing instruction is excluded from retirement
+        access_csr(CsrAddress.MCOUNTINHIBIT, Some(1))
+        dut.io.counters.nRetired.poke(1.U)
+        dut.clock.step()
+        dut.io.csr.out.value(6).expect(20.U)
+        dut.io.counters.nRetired.poke(2.U)
+        dut.clock.step()
+        dut.io.counters.nRetired.poke(0.U)
+        assert(access_csr(CsrAddress.MINSTRET) == 22)
+        val frozenCycles = access_csr(CsrAddress.MCYCLE)
+
+        // Freezing instruction still retires under previous IR setting
+        access_csr(CsrAddress.MCOUNTINHIBIT, Some(5))
+        dut.io.counters.nRetired.poke(1.U)
+        dut.clock.step()
+        dut.io.counters.nRetired.poke(2.U)
+        dut.clock.step(3)
+        dut.io.counters.nRetired.poke(0.U)
+        assert(access_csr(CsrAddress.MINSTRET) == 23)
+        assert(access_csr(CsrAddress.MCYCLE) == frozenCycles)
+      }
+    }
+  }
+
   "CSR Operations" in {
     simulate(new Csr(p)) { dut =>
       initDut(dut)

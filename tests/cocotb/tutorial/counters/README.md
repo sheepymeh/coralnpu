@@ -12,6 +12,8 @@ processor has executed since reset.
 Instruction Retirement Counter (minstret/minstreth): Tracks the total number of
 instructions retired (successfully completed) by the processor.
 
+Machine Counter Inhibit (mcountinhibit): Keep counters frozen while reading them for a stable snapshot.
+
 Cycles and instructions are read from registers via assembly interface for example:
 
 ```c

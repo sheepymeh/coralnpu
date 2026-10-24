@@ -45,59 +45,60 @@ object Csr {
 object CsrAddress extends ChiselEnum {
   // Per spec, this is not allocated. We use this internally to
   // represent an invalid address.
-  val RESERVED  = Value(0x000.U(12.W))
-  val FFLAGS    = Value(0x001.U(12.W))
-  val FRM       = Value(0x002.U(12.W))
-  val FCSR      = Value(0x003.U(12.W))
-  val VSTART    = Value(0x008.U(12.W))
-  val VXSAT     = Value(0x009.U(12.W))
-  val VXRM      = Value(0x00a.U(12.W))
-  val MSTATUS   = Value(0x300.U(12.W))
-  val MISA      = Value(0x301.U(12.W))
-  val MIE       = Value(0x304.U(12.W))
-  val MTVEC     = Value(0x305.U(12.W))
-  val MSTATUSH  = Value(0x310.U(12.W))
-  val MSCRATCH  = Value(0x340.U(12.W))
-  val MEPC      = Value(0x341.U(12.W))
-  val MCAUSE    = Value(0x342.U(12.W))
-  val MTVAL     = Value(0x343.U(12.W))
-  val MIP       = Value(0x344.U(12.W))
-  val TSELECT   = Value(0x7a0.U(12.W))
-  val TDATA1    = Value(0x7a1.U(12.W))
-  val TDATA2    = Value(0x7a2.U(12.W))
-  val TINFO     = Value(0x7a4.U(12.W))
-  val DCSR      = Value(0x7b0.U(12.W))
-  val DPC       = Value(0x7b1.U(12.W))
-  val DSCRATCH0 = Value(0x7b2.U(12.W))
-  val DSCRATCH1 = Value(0x7b3.U(12.W))
-  val MCONTEXT0 = Value(0x7c0.U(12.W))
-  val MCONTEXT1 = Value(0x7c1.U(12.W))
-  val MCONTEXT2 = Value(0x7c2.U(12.W))
-  val MCONTEXT3 = Value(0x7c3.U(12.W))
-  val MCONTEXT4 = Value(0x7c4.U(12.W))
-  val MCONTEXT5 = Value(0x7c5.U(12.W))
-  val MCONTEXT6 = Value(0x7c6.U(12.W))
-  val MCONTEXT7 = Value(0x7c7.U(12.W))
-  val MPC       = Value(0x7e0.U(12.W))
-  val MSP       = Value(0x7e1.U(12.W))
-  val MCYCLE    = Value(0xb00.U(12.W))
-  val MINSTRET  = Value(0xb02.U(12.W))
-  val MCYCLEH   = Value(0xb80.U(12.W))
-  val MINSTRETH = Value(0xb82.U(12.W))
-  val VL        = Value(0xc20.U(12.W))
-  val VTYPE     = Value(0xc21.U(12.W))
-  val VLENB     = Value(0xc22.U(12.W))
-  val MTYPE     = Value(0xc23.U(12.W))
-  val MVENDORID = Value(0xf11.U(12.W))
-  val MARCHID   = Value(0xf12.U(12.W))
-  val MIMPID    = Value(0xf13.U(12.W))
-  val MHARTID   = Value(0xf14.U(12.W))
-  val KISA      = Value(0xfc0.U(12.W))
-  val KSCM0     = Value(0xfc4.U(12.W))
-  val KSCM1     = Value(0xfc8.U(12.W))
-  val KSCM2     = Value(0xfcc.U(12.W))
-  val KSCM3     = Value(0xfd0.U(12.W))
-  val KSCM4     = Value(0xfd4.U(12.W))
+  val RESERVED      = Value(0x000.U(12.W))
+  val FFLAGS        = Value(0x001.U(12.W))
+  val FRM           = Value(0x002.U(12.W))
+  val FCSR          = Value(0x003.U(12.W))
+  val VSTART        = Value(0x008.U(12.W))
+  val VXSAT         = Value(0x009.U(12.W))
+  val VXRM          = Value(0x00a.U(12.W))
+  val MSTATUS       = Value(0x300.U(12.W))
+  val MISA          = Value(0x301.U(12.W))
+  val MIE           = Value(0x304.U(12.W))
+  val MTVEC         = Value(0x305.U(12.W))
+  val MSTATUSH      = Value(0x310.U(12.W))
+  val MCOUNTINHIBIT = Value(0x320.U(12.W))
+  val MSCRATCH      = Value(0x340.U(12.W))
+  val MEPC          = Value(0x341.U(12.W))
+  val MCAUSE        = Value(0x342.U(12.W))
+  val MTVAL         = Value(0x343.U(12.W))
+  val MIP           = Value(0x344.U(12.W))
+  val TSELECT       = Value(0x7a0.U(12.W))
+  val TDATA1        = Value(0x7a1.U(12.W))
+  val TDATA2        = Value(0x7a2.U(12.W))
+  val TINFO         = Value(0x7a4.U(12.W))
+  val DCSR          = Value(0x7b0.U(12.W))
+  val DPC           = Value(0x7b1.U(12.W))
+  val DSCRATCH0     = Value(0x7b2.U(12.W))
+  val DSCRATCH1     = Value(0x7b3.U(12.W))
+  val MCONTEXT0     = Value(0x7c0.U(12.W))
+  val MCONTEXT1     = Value(0x7c1.U(12.W))
+  val MCONTEXT2     = Value(0x7c2.U(12.W))
+  val MCONTEXT3     = Value(0x7c3.U(12.W))
+  val MCONTEXT4     = Value(0x7c4.U(12.W))
+  val MCONTEXT5     = Value(0x7c5.U(12.W))
+  val MCONTEXT6     = Value(0x7c6.U(12.W))
+  val MCONTEXT7     = Value(0x7c7.U(12.W))
+  val MPC           = Value(0x7e0.U(12.W))
+  val MSP           = Value(0x7e1.U(12.W))
+  val MCYCLE        = Value(0xb00.U(12.W))
+  val MINSTRET      = Value(0xb02.U(12.W))
+  val MCYCLEH       = Value(0xb80.U(12.W))
+  val MINSTRETH     = Value(0xb82.U(12.W))
+  val VL            = Value(0xc20.U(12.W))
+  val VTYPE         = Value(0xc21.U(12.W))
+  val VLENB         = Value(0xc22.U(12.W))
+  val MTYPE         = Value(0xc23.U(12.W))
+  val MVENDORID     = Value(0xf11.U(12.W))
+  val MARCHID       = Value(0xf12.U(12.W))
+  val MIMPID        = Value(0xf13.U(12.W))
+  val MHARTID       = Value(0xf14.U(12.W))
+  val KISA          = Value(0xfc0.U(12.W))
+  val KSCM0         = Value(0xfc4.U(12.W))
+  val KSCM1         = Value(0xfc8.U(12.W))
+  val KSCM2         = Value(0xfcc.U(12.W))
+  val KSCM3         = Value(0xfd0.U(12.W))
+  val KSCM4         = Value(0xfd4.U(12.W))
 }
 
 object CsrMode extends ChiselEnum {
@@ -329,6 +330,10 @@ class Csr(p: Parameters) extends Module {
   val minstret                  = RegInit(0.U(64.W))
   val minstretThisCycle_delayed = Wire(UInt(64.W))
   val minstret_val              = minstret + minstretThisCycle_delayed
+  val mcountinhibit             = RegInit(0.U(p.xlen.W))
+  // nRetired is delayed one cycle by retirement buffer
+  // Delay inhibition as well to match behavior
+  val minstret_inhibit_delayed  = RegNext(mcountinhibit(2), false.B)
 
   // MXLEN, I,M,X extensions
   val misaValue = (if (p.xlen == 32) BigInt(0x40801100L) else BigInt("8000000000801100", 16)) |
@@ -402,10 +407,11 @@ class Csr(p: Parameters) extends Module {
   val mpcEn       = csr_address === CsrAddress.MPC
   val mspEn       = csr_address === CsrAddress.MSP
   // M-mode performance CSRs.
-  val mcycleEn    = csr_address === CsrAddress.MCYCLE
-  val minstretEn  = csr_address === CsrAddress.MINSTRET
-  val mcyclehEn   = csr_address === CsrAddress.MCYCLEH
-  val minstrethEn = csr_address === CsrAddress.MINSTRETH
+  val mcycleEn        = csr_address === CsrAddress.MCYCLE
+  val minstretEn      = csr_address === CsrAddress.MINSTRET
+  val mcyclehEn       = csr_address === CsrAddress.MCYCLEH
+  val minstrethEn     = csr_address === CsrAddress.MINSTRETH
+  val mcountinhibitEn = csr_address === CsrAddress.MCOUNTINHIBIT
   // Vector CSRs.
   val vlenbEn = Option.when(p.enableRvv) { csr_address === CsrAddress.VLENB }
   // Matrix CSRs (Zvt). Read-only; updated by mset* through the RVV frontend.
@@ -508,40 +514,41 @@ class Csr(p: Parameters) extends Module {
   val rdata = MuxUpTo1H(
     0.U(p.xlen.W),
     Seq(
-      fflagsEn    -> fflagsWord(fflags),
-      frmEn       -> frmWord(frm),
-      fcsrEn      -> fcsrWord(fcsr),
-      mstatusEn   -> mstatusWord(mstatus_mie, mstatus_mpie, fs_val, vs_val, ms_val, mstatus_sd),
-      misaEn      -> misa,
-      mieEn       -> mie,
-      mipEn       -> mip,
-      mtvecEn     -> mtvec,
-      mscratchEn  -> mscratch,
-      mepcEn      -> mepc,
-      mcauseEn    -> mcause,
-      mtvalEn     -> mtval,
-      mcontext0En -> mcontext0,
-      mcontext1En -> mcontext1,
-      mcontext2En -> mcontext2,
-      mcontext3En -> mcontext3,
-      mcontext4En -> mcontext4,
-      mcontext5En -> mcontext5,
-      mcontext6En -> mcontext6,
-      mcontext7En -> mcontext7,
-      mpcEn       -> mpc,
-      mspEn       -> msp,
-      mcycleEn    -> (if (p.xlen == 32) mcycle(31, 0) else mcycle),
-      minstretEn  -> (if (p.xlen == 32) minstret_val(31, 0) else minstret_val),
-      mvendoridEn -> mvendorid,
-      marchidEn   -> Cat(0.U((p.xlen - 1).W), marchid),
-      mimpidEn    -> Cat(0.U((p.xlen - 1).W), mimpid),
-      mhartidEn   -> mhartid,
-      kisaEn      -> kisa,
-      kscm0En     -> kscm(31, 0),
-      kscm1En     -> kscm(63, 32),
-      kscm2En     -> kscm(95, 64),
-      kscm3En     -> kscm(127, 96),
-      kscm4En     -> kscm(159, 128)
+      fflagsEn        -> fflagsWord(fflags),
+      frmEn           -> frmWord(frm),
+      fcsrEn          -> fcsrWord(fcsr),
+      mstatusEn       -> mstatusWord(mstatus_mie, mstatus_mpie, fs_val, vs_val, ms_val, mstatus_sd),
+      misaEn          -> misa,
+      mieEn           -> mie,
+      mipEn           -> mip,
+      mtvecEn         -> mtvec,
+      mscratchEn      -> mscratch,
+      mepcEn          -> mepc,
+      mcauseEn        -> mcause,
+      mtvalEn         -> mtval,
+      mcontext0En     -> mcontext0,
+      mcontext1En     -> mcontext1,
+      mcontext2En     -> mcontext2,
+      mcontext3En     -> mcontext3,
+      mcontext4En     -> mcontext4,
+      mcontext5En     -> mcontext5,
+      mcontext6En     -> mcontext6,
+      mcontext7En     -> mcontext7,
+      mpcEn           -> mpc,
+      mspEn           -> msp,
+      mcycleEn        -> (if (p.xlen == 32) mcycle(31, 0) else mcycle),
+      minstretEn      -> (if (p.xlen == 32) minstret_val(31, 0) else minstret_val),
+      mcountinhibitEn -> mcountinhibit,
+      mvendoridEn     -> mvendorid,
+      marchidEn       -> Cat(0.U((p.xlen - 1).W), marchid),
+      mimpidEn        -> Cat(0.U((p.xlen - 1).W), mimpid),
+      mhartidEn       -> mhartid,
+      kisaEn          -> kisa,
+      kscm0En         -> kscm(31, 0),
+      kscm1En         -> kscm(63, 32),
+      kscm2En         -> kscm(95, 64),
+      kscm3En         -> kscm(127, 96),
+      kscm4En         -> kscm(159, 128)
     ) ++ (if (p.xlen == 32)
             Seq(
               mcyclehEn   -> mcycle(63, 32),
@@ -594,6 +601,11 @@ class Csr(p: Parameters) extends Module {
 
   val is_csr_write =
     req.valid && !(req.bits.op.isOneOf(CsrOp.CSRRS, CsrOp.CSRRC) && req.bits.rs1 === 0.U)
+
+  val mcountinhibit_wdata = localWdata(mcountinhibit) & 0x5.U(p.xlen.W)
+  when(is_csr_write && mcountinhibitEn) {
+    mcountinhibit := mcountinhibit_wdata
+  }
 
   val float_dirty_event = Option.when(p.enableFloat) {
     (is_csr_write && (fflagsEn || frmEn || fcsrEn)) ||
@@ -681,10 +693,10 @@ class Csr(p: Parameters) extends Module {
     val mcycle_tl      = Mux(mcycleEn, wdata, mcycle(31, 0))
     val mcycle_t       = Cat(mcycle_th, mcycle_tl)
     val mcycle_written = is_csr_write && (mcycleEn || mcyclehEn)
-    mcycle := Mux(mcycle_written, mcycle_t, mcycle + 1.U)
+    mcycle := Mux(mcycle_written, mcycle_t, mcycle + !mcountinhibit(0))
   } else {
     val mcycle_written = is_csr_write && mcycleEn
-    mcycle := Mux(mcycle_written, wdata, mcycle + 1.U)
+    mcycle := Mux(mcycle_written, wdata, mcycle + !mcountinhibit(0))
   }
 
   // minstret implementation
@@ -697,7 +709,7 @@ class Csr(p: Parameters) extends Module {
     // and prevent dropping retired instructions during CSR writes.
     val minstret_written_delayed = RegNext(minstret_written, false.B)
     minstretThisCycle_delayed := Mux(
-      minstret_written_delayed,
+      minstret_written_delayed || minstret_inhibit_delayed,
       0.U,
       io.counters.nRetired
     )
@@ -706,7 +718,7 @@ class Csr(p: Parameters) extends Module {
     val minstret_written         = is_csr_write && minstretEn
     val minstret_written_delayed = RegNext(minstret_written, false.B)
     minstretThisCycle_delayed := Mux(
-      minstret_written_delayed,
+      minstret_written_delayed || minstret_inhibit_delayed,
       0.U,
       io.counters.nRetired
     )
@@ -892,7 +904,8 @@ class Csr(p: Parameters) extends Module {
       frmEn      -> frmWord(localWdata(frm)),
       fcsrEn     -> fcsrWord(fcsr_w),
       tdata1En   -> LegalizeTdata1(wdata).asWord,
-      tinfoEn    -> tinfo
+      tinfoEn    -> tinfo,
+      mcountinhibitEn -> mcountinhibit_wdata,
     ) ++ Seq(
       vstartEn.map(_ -> vstartWord(wdata)),
       vxrmEn.map(_ -> vxrmWord(wdata)),
