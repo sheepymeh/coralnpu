@@ -210,6 +210,7 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
       dut.io.lsuStall.expect(false.B)
       instruction(dut, 0, add(1))
       dut.io.lsuStall.expect(false.B)
+      dut.io.inst(0).ready.expect(true.B)
 
       // Exclude cycles already blocked by other dispatch conditions
       val blockers: Seq[DispatchV2 => Unit] = Seq(
@@ -230,15 +231,16 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
       // Earlier dispatch lanes consume capacity or block younger instructions
       DispatchTestUtils.initialize(dut, p)
       instruction(dut, 0, load(1))
-      instruction(dut, 1, load(2))
+      instruction(dut, 1, add(2))
       instruction(dut, 2, load(3))
       dut.io.lsuQueueCapacity.poke(1.U)
       dut.io.inst(0).ready.expect(true.B)
-      dut.io.inst(1).ready.expect(false.B)
+      dut.io.inst(1).ready.expect(true.B)
+      dut.io.inst(2).ready.expect(false.B)
       dut.io.lsuStall.expect(true.B)
 
       // Enough entries allow all lanes to dispatch
-      dut.io.lsuQueueCapacity.poke(3.U)
+      dut.io.lsuQueueCapacity.poke(2.U)
       dut.io.inst(2).ready.expect(true.B)
       dut.io.lsuStall.expect(false.B)
 
