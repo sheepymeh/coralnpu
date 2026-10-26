@@ -301,5 +301,6 @@ chisel_test(
     ],
     deps = [
         ":fifo_state",
+        ":library",
     ],
 )

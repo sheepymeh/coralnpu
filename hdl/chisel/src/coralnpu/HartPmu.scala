@@ -2,10 +2,10 @@ package coralnpu
 
 import chisel3._
 import chisel3.util._
-import common.MuxUpTo1H
+import common.{BitWidthForInt, MuxUpTo1H}
 
 class HartPmuEvents(p: Parameters) extends Bundle {
-  val nRetired = UInt(log2Ceil(p.retirementLanes + 1).W)
+  val nRetired = UInt(BitWidthForInt(p.retirementLanes))
 }
 
 class PmuCsrRequest(p: Parameters) extends Bundle {
