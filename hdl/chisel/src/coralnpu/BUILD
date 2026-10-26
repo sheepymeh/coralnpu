@@ -250,6 +250,7 @@ chisel_test(
     ],
     deps = [
         ":coralnpu_base",
+        ":coralnpu_rvv",
         ":coralnpu_scalar",
         "//hdl/chisel/src/common:testing",
     ],

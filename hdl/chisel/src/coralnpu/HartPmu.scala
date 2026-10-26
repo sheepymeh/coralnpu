@@ -2,10 +2,43 @@ package coralnpu
 
 import chisel3._
 import chisel3.util._
-import common.{BitWidthForInt, MuxUpTo1H}
+import common.{BitWidthForInt, MuxOR, MuxUpTo1H}
+
+object MemoryHpmEvent {
+  val NONE                 = 0
+  val LSU_REQUESTS         = 1
+  val LSU_STALL_CYCLES     = 2
+  val DTCM_READ_BYTES      = 3
+  val DTCM_WRITE_BYTES     = 4
+  val EXTERNAL_WAIT_CYCLES = 5
+  val EXTERNAL_READ_BYTES  = 6
+  val EXTERNAL_WRITE_BYTES = 7
+
+  def increments(events: MemoryPerfEvents): Seq[(Int, UInt)] = Seq(
+    LSU_REQUESTS         -> events.lsuRequests,
+    LSU_STALL_CYCLES     -> events.lsuStallCycles.asUInt,
+    DTCM_READ_BYTES      -> events.dtcmReadBytes,
+    DTCM_WRITE_BYTES     -> events.dtcmWriteBytes,
+    EXTERNAL_WAIT_CYCLES -> events.externalWaitCycles.asUInt,
+    EXTERNAL_READ_BYTES  -> events.externalReadBytes,
+    EXTERNAL_WRITE_BYTES -> events.externalWriteBytes
+  )
+}
+
+// Per-cycle increments, Bool events add 0/1 without local state
+class MemoryPerfEvents(p: Parameters) extends Bundle {
+  val lsuRequests        = UInt(BitWidthForInt(p.instructionLanes))
+  val lsuStallCycles     = Bool()
+  val dtcmReadBytes      = UInt(p.dbusSize.W)
+  val dtcmWriteBytes     = UInt(p.dbusSize.W)
+  val externalWaitCycles = Bool()
+  val externalReadBytes  = UInt(p.dbusSize.W)
+  val externalWriteBytes = UInt(p.dbusSize.W)
+}
 
 class HartPmuEvents(p: Parameters) extends Bundle {
   val nRetired = UInt(BitWidthForInt(p.retirementLanes))
+  val memory   = new MemoryPerfEvents(p)
 }
 
 class PmuCsrRequest(p: Parameters) extends Bundle {
@@ -57,8 +90,10 @@ class HartPmu(p: Parameters) extends Module {
   val write   = request.valid && request.write && address.writable
 
   // Append subsystem event tables here, IDs drive both validation and increment selection
-  val event_increments = Seq(0 -> 0.U)
-  val event_ids        = event_increments.map(_._1)
+  val event_increments =
+    Seq(0 -> 0.U) ++ // event 0 (disabled)
+      MemoryHpmEvent.increments(io.events.memory)
+  val event_ids = event_increments.map(_._1)
   require(event_ids.distinct.size == event_ids.size, "PMU event IDs must be unique")
   require(event_ids.forall(_ >= 0), "PMU event IDs must be nonnegative")
   val event_width = math.max(1, BigInt(event_ids.max).bitLength)
@@ -83,7 +118,7 @@ class HartPmu(p: Parameters) extends Module {
   // Retirement arrives one cycle after CSR commit, including inhibit-writing instruction
   val minstret_written_delayed = RegNext(minstret_written, false.B)
   val minstret_inhibit_delayed = RegNext(mcountinhibit(PmuCsrAddress.instretSlot), false.B)
-  val nRetired = Mux(minstret_written_delayed || minstret_inhibit_delayed, 0.U, io.events.nRetired)
+  val nRetired = MuxOR(!minstret_written_delayed && !minstret_inhibit_delayed, io.events.nRetired)
 
   private def readWord(value: UInt): UInt =
     if (p.xlen == 32) Mux(address.high, value(63, 32), value(31, 0)) else value
@@ -102,7 +137,7 @@ class HartPmu(p: Parameters) extends Module {
       selector_select.zip(selectors.map(_.pad(p.xlen))) ++
       Seq(address.inhibit -> mcountinhibit.pad(p.xlen))
   )
-  io.csr.response.readData := Mux(address.supported, read_data, 0.U)
+  io.csr.response.readData := MuxOR(address.supported, read_data)
 
   val raw_write_data = CsrOp.writeData(request.op, read_data, request.operand)
   // Unsupported IDs disable selection instead of truncating to a supported ID
@@ -117,7 +152,7 @@ class HartPmu(p: Parameters) extends Module {
       address.inhibit       -> (raw_write_data & countinhibit_mask.pad(p.xlen))
     )
   )
-  io.csr.response.writeData := Mux(write, write_data, 0.U)
+  io.csr.response.writeData := MuxOR(write, write_data)
 
   when(write && address.inhibit) { mcountinhibit := write_data(31, 0) }
   for (i <- selectors.indices) {
@@ -138,7 +173,7 @@ class HartPmu(p: Parameters) extends Module {
             id.U -> amount
           }
         )
-        Mux(mcountinhibit(slot), 0.U, selected_increment)
+        MuxOR(!mcountinhibit(slot), selected_increment)
     }
 
     // RV32 writes preserve untouched half, including retirement from older instructions

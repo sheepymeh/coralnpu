@@ -358,6 +358,7 @@ class Dispatch(p: Parameters) extends Module {
     // LSU interface.
     val lsu              = Vec(p.instructionLanes, Decoupled(new LsuCmd(p)))
     val lsuQueueCapacity = Input(UInt(3.W))
+    val lsuStall         = Output(Bool())
 
     // Multiplier interface.
     val mlu = Vec(p.instructionLanes, Decoupled(new MluCmd(p)))
@@ -642,9 +643,8 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
     (0 until p.instructionLanes).map(i => !decodedInsts(i).mpause || ((i == 0).B && coreIdle))
 
   // ---------------------------------------------------------------------------
-  // Combine above rules. This variable represents which instructions can be
-  // dispatched before in-orderness and back-pressure are considered.
-  val canDispatch = (0 until p.instructionLanes).map(i =>
+  // Keep LSU capacity separate to observe stalls before request valid is suppressed
+  val canDispatchExceptLsuCapacity = (0 until p.instructionLanes).map(i =>
     !io.halted &&                 // Don't dispatch if halted
       !io.interlock &&            // Don't dispatch when interlocked
       io.inst(i).valid &&         // Instruction should be valid to dispatch
@@ -662,7 +662,6 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
       vmeMsOffInterlock(i) && // Don't dispatch tile instructions or vtdiscard if mstatus.MS == Off
       vmeDiscardVillInterlock(i) && // Don't dispatch vtdiscard if vill == 1
       // rvvLsuInterlock(i) &&  // Dispatch only one Rvv LsuOp
-      lsuInterlock(i) &&                     // Ensure lsu instructions can be dispatched into queue
       rvvInterlock(i) &&                     // Ensure rvv instructions can be dispatched into queue
       !undefInterlock(i) &&                  // Ensure undef is only dispatched from first slot
       (i.U < io.retirement_buffer_nSpace) && // Retirement buffer needs space for our slot
@@ -672,6 +671,8 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
       singleStepInterlock(i) &&
       mpauseInterlock(i)
   )
+  val canDispatch =
+    (0 until p.instructionLanes).map(i => canDispatchExceptLsuCapacity(i) && lsuInterlock(i))
 
   io.undefFault := (0 until p.instructionLanes).map(i =>
     if (i == 0) { canDispatch(0) && decodedInsts(0).undef }
@@ -994,6 +995,15 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
         Option.when(p.enableFloat && i == 0)(Seq(io.float.get.fire)).getOrElse(Seq())
     lastReady(i + 1) := dispatched.reduce(_ || _)
   }
+
+  io.lsuStall := (0 until p.instructionLanes)
+    .map(i =>
+      lastReady(i) && // ignore blockage when older lanes could not dispatch anyway
+        canDispatchExceptLsuCapacity(i) && // other eligibility checks passed
+        isLsu(i) &&                        // is LSU instruction
+        !lsuInterlock(i)                   // no LSU queue slot available for this lane
+    )
+    .reduce(_ || _)
 
   for (i <- 0 until p.instructionLanes) {
     io.inst(i).ready := lastReady(i + 1)

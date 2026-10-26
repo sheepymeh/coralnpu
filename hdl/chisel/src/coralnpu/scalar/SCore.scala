@@ -208,6 +208,40 @@ class SCore(p: Parameters) extends Module {
   // Instruction counters
   pmu.io.events.nRetired := rob_io.nRetired
 
+  // Events in core fabric clock domain
+  // Cross-domain crossing required for DMA/host activity
+  val memoryEvents = pmu.io.events.memory
+  // Queue admissions, including requests later flushed
+  memoryEvents.lsuRequests := PopCount(
+    lsu.io.req.map(x =>
+      x.fire &&
+        x.bits.op =/= LsuOp.FENCEI // FENCEI also handles WFI, both bypass memory queue
+    )
+  )
+  memoryEvents.lsuStallCycles := dispatch.io.lsuStall
+
+  val dtcmAccepted = io.dbus.fire
+  // Reads always fetch full rows including subword loads
+  memoryEvents.dtcmReadBytes  := MuxOR(dtcmAccepted && !io.dbus.write, p.lsuDataBytes.U)
+  memoryEvents.dtcmWriteBytes := MuxOR(
+    dtcmAccepted && io.dbus.write,
+    PopCount(io.dbus.wmask) // count only bytes actually written
+  )
+
+  // Count bytes only on DBus ready, not every AXI wait cycle
+  // Exclude internal CSRs, external MMIO shares the same path as memory
+  val externalRequest  = io.ebus.dbus.valid && !io.ebus.internal
+  val externalComplete = io.ebus.dbus.fire && !io.ebus.internal
+  memoryEvents.externalWaitCycles := externalRequest && !io.ebus.dbus.ready
+  memoryEvents.externalReadBytes  := MuxOR(
+    externalComplete && !io.ebus.dbus.write,
+    io.ebus.dbus.size
+  )
+  memoryEvents.externalWriteBytes := MuxOR(
+    externalComplete && io.ebus.dbus.write,
+    PopCount(io.ebus.dbus.wmask)
+  )
+
   // ---------------------------------------------------------------------------
   // Control Status Unit
   csr.io.csr <> io.csr

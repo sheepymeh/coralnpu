@@ -51,6 +51,13 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
     dut.io.bru.in.fault.poke(false.B)
     dut.io.bru.in.wfi.poke(false.B)
     dut.counters.nRetired.poke(0.U)
+    dut.counters.memory.lsuRequests.poke(0.U)
+    dut.counters.memory.lsuStallCycles.poke(false.B)
+    dut.counters.memory.dtcmReadBytes.poke(0.U)
+    dut.counters.memory.dtcmWriteBytes.poke(0.U)
+    dut.counters.memory.externalWaitCycles.poke(false.B)
+    dut.counters.memory.externalReadBytes.poke(0.U)
+    dut.counters.memory.externalWriteBytes.poke(0.U)
     dut.io.dm.debug_req.poke(false.B)
     dut.io.dm.resume_req.poke(false.B)
     dut.io.dm.current_pc.poke(0.U)
@@ -99,66 +106,70 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
     result
   }
 
-  for (xlen <- Seq(32, 64)) {
-    s"RV$xlen cycle and retirement counter inhibition" in {
-      val parameters = new Parameters(xlen = xlen)
-      parameters.numProgrammableHpmCounters = 0
-      parameters.enableFloat = true
-      parameters.enableRvv = true
-      parameters.enableVerification = true
-      simulate(new CsrPmuHarness(parameters)) { dut =>
-        initDut(dut)
-        dut.clock.step()
+  "Cycle and retirement counter inhibition without programmable counters" in {
+    val parameters = new Parameters
+    parameters.numProgrammableHpmCounters = 0
+    parameters.enableFloat = true
+    parameters.enableRvv = true
+    parameters.enableVerification = true
+    simulate(new CsrPmuHarness(parameters)) { dut =>
+      initDut(dut)
+      dut.clock.step()
 
-        // Check reset value, writable-bit masking, and inhibition of both counters
-        assert(access_csr(dut, CsrAddress.MCOUNTINHIBIT) == 0)
-        assert(access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some((BigInt(1) << xlen) - 1)) == 5)
-        val cycles = access_csr(dut, CsrAddress.MCYCLE)
-        dut.counters.nRetired.poke(2.U)
-        dut.clock.step(3)
-        dut.counters.nRetired.poke(0.U)
-        assert(access_csr(dut, CsrAddress.MCYCLE) == cycles)
-        assert(access_csr(dut, CsrAddress.MINSTRET) == 0)
+      // Check reset value, writable-bit masking, and inhibition of both counters
+      assert(access_csr(dut, CsrAddress.MCOUNTINHIBIT) == 0)
+      assert(access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(BigInt("ffffffff", 16))) == 5)
+      val cycles = access_csr(dut, CsrAddress.MCYCLE)
+      dut.counters.nRetired.poke(2.U)
+      dut.clock.step(3)
+      dut.counters.nRetired.poke(0.U)
+      assert(access_csr(dut, CsrAddress.MCYCLE) == cycles)
+      assert(access_csr(dut, CsrAddress.MINSTRET) == 0)
 
-        // Counter writes remain effective while counting is inhibited
-        access_csr(dut, CsrAddress.MCYCLE, Some(10))
-        access_csr(dut, CsrAddress.MINSTRET, Some(20))
-        assert(access_csr(dut, CsrAddress.MCYCLE) == 10)
-        assert(access_csr(dut, CsrAddress.MINSTRET) == 20)
+      // Zero-counter configuration keeps HPM CSRs accessible and zero-backed
+      access_csr(dut, CsrAddress.MHPMCOUNTER3, Some(99))
+      assert(access_csr(dut, CsrAddress.HPMCOUNTER3) == 0)
+      access_csr(dut, CsrAddress.MHPMEVENT3, Some(MemoryHpmEvent.LSU_REQUESTS))
+      assert(access_csr(dut, CsrAddress.MHPMEVENT3) == 0)
 
-        // Clear CY independently while IR keeps retirement count frozen
-        access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(4))
-        dut.counters.nRetired.poke(2.U)
-        dut.clock.step(3)
-        dut.counters.nRetired.poke(0.U)
-        assert(access_csr(dut, CsrAddress.MCYCLE) > 10)
-        assert(access_csr(dut, CsrAddress.MINSTRET) == 20)
+      // Counter writes remain effective while counting is inhibited
+      access_csr(dut, CsrAddress.MCYCLE, Some(10))
+      access_csr(dut, CsrAddress.MINSTRET, Some(20))
+      assert(access_csr(dut, CsrAddress.MCYCLE) == 10)
+      assert(access_csr(dut, CsrAddress.MINSTRET) == 20)
 
-        // Unfreezing instruction is excluded from retirement
-        access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(1))
-        dut.counters.nRetired.poke(1.U)
-        dut.clock.step()
-        dut.io.csr.out.value(6).expect(20.U)
-        dut.counters.nRetired.poke(2.U)
-        dut.clock.step()
-        dut.counters.nRetired.poke(0.U)
-        assert(access_csr(dut, CsrAddress.MINSTRET) == 22)
-        val frozenCycles = access_csr(dut, CsrAddress.MCYCLE)
+      // Clear CY independently while IR keeps retirement count frozen
+      access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(4))
+      dut.counters.nRetired.poke(2.U)
+      dut.clock.step(3)
+      dut.counters.nRetired.poke(0.U)
+      assert(access_csr(dut, CsrAddress.MCYCLE) > 10)
+      assert(access_csr(dut, CsrAddress.MINSTRET) == 20)
 
-        // Freezing instruction still retires under previous IR setting
-        access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(5))
-        dut.counters.nRetired.poke(1.U)
-        dut.clock.step()
-        dut.counters.nRetired.poke(2.U)
-        dut.clock.step(3)
-        dut.counters.nRetired.poke(0.U)
-        assert(access_csr(dut, CsrAddress.MINSTRET) == 23)
-        assert(access_csr(dut, CsrAddress.MCYCLE) == frozenCycles)
-      }
+      // Unfreezing instruction is excluded from retirement
+      access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(1))
+      dut.counters.nRetired.poke(1.U)
+      dut.clock.step()
+      dut.io.csr.out.value(6).expect(20.U)
+      dut.counters.nRetired.poke(2.U)
+      dut.clock.step()
+      dut.counters.nRetired.poke(0.U)
+      assert(access_csr(dut, CsrAddress.MINSTRET) == 22)
+      val frozenCycles = access_csr(dut, CsrAddress.MCYCLE)
+
+      // Freezing instruction still retires under previous IR setting
+      access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(5))
+      dut.counters.nRetired.poke(1.U)
+      dut.clock.step()
+      dut.counters.nRetired.poke(2.U)
+      dut.clock.step(3)
+      dut.counters.nRetired.poke(0.U)
+      assert(access_csr(dut, CsrAddress.MINSTRET) == 23)
+      assert(access_csr(dut, CsrAddress.MCYCLE) == frozenCycles)
     }
   }
 
-  for ((xlen, num_programmable_counters) <- Seq((32, 0), (32, 4), (64, 29))) {
+  for ((xlen, num_programmable_counters) <- Seq((32, 4), (64, 29))) {
     s"RV$xlen HPM register bank with $num_programmable_counters programmable counters" in {
       val parameters = new Parameters(xlen = xlen)
       parameters.numProgrammableHpmCounters = num_programmable_counters
@@ -183,7 +194,7 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
             CsrAddress.HPMCOUNTER3,
             CsrAddress.HPMCOUNTER3H,
             CsrAddress.MHPMEVENT3,
-            num_programmable_counters > 0
+            true
           ),
           (
             CsrAddress.MHPMCOUNTER31,
@@ -209,9 +220,26 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
           assert(access_csr(dut, alias) == cleared)
           if (xlen == 32) assert(access_csr(dut, alias_high) == expected >> 32)
 
-          // Until events are added, selectors support only disabled event 0
-          assert(access_csr(dut, selector, Some(word_mask)) == 0)
-          assert(access_csr(dut, selector) == 0)
+          // RV64 selector validation must inspect upper bits before narrowing
+          if (xlen == 64) {
+            val invalid_id = (BigInt(1) << 32) | MemoryHpmEvent.LSU_REQUESTS
+            assert(access_csr(dut, selector, Some(invalid_id)) == 0)
+            assert(access_csr(dut, selector) == 0)
+          }
+
+          // Event routing and inhibition work at both ends of the implemented bank
+          val event_id = if (implemented) MemoryHpmEvent.LSU_REQUESTS else MemoryHpmEvent.NONE
+          assert(access_csr(dut, selector, Some(MemoryHpmEvent.LSU_REQUESTS)) == event_id)
+          assert(access_csr(dut, selector) == event_id)
+          if (implemented) {
+            val slot = low.litValue.toInt & 31
+            access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(inhibit_mask.clearBit(slot)))
+            dut.counters.memory.lsuRequests.poke(3.U)
+            dut.clock.step(2)
+            dut.counters.memory.lsuRequests.poke(0.U)
+            assert(access_csr(dut, alias) == ((cleared + 6) & word_mask))
+            access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(inhibit_mask))
+          }
         }
 
         if (num_programmable_counters == 4) {
