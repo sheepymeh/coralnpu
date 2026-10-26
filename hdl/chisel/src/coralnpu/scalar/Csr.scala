@@ -42,65 +42,6 @@ object Csr {
   }
 }
 
-object CsrAddress extends ChiselEnum {
-  // Per spec, this is not allocated. We use this internally to
-  // represent an invalid address.
-  val RESERVED      = Value(0x000.U(12.W))
-  val FFLAGS        = Value(0x001.U(12.W))
-  val FRM           = Value(0x002.U(12.W))
-  val FCSR          = Value(0x003.U(12.W))
-  val VSTART        = Value(0x008.U(12.W))
-  val VXSAT         = Value(0x009.U(12.W))
-  val VXRM          = Value(0x00a.U(12.W))
-  val MSTATUS       = Value(0x300.U(12.W))
-  val MISA          = Value(0x301.U(12.W))
-  val MIE           = Value(0x304.U(12.W))
-  val MTVEC         = Value(0x305.U(12.W))
-  val MSTATUSH      = Value(0x310.U(12.W))
-  val MCOUNTINHIBIT = Value(0x320.U(12.W))
-  val MSCRATCH      = Value(0x340.U(12.W))
-  val MEPC          = Value(0x341.U(12.W))
-  val MCAUSE        = Value(0x342.U(12.W))
-  val MTVAL         = Value(0x343.U(12.W))
-  val MIP           = Value(0x344.U(12.W))
-  val TSELECT       = Value(0x7a0.U(12.W))
-  val TDATA1        = Value(0x7a1.U(12.W))
-  val TDATA2        = Value(0x7a2.U(12.W))
-  val TINFO         = Value(0x7a4.U(12.W))
-  val DCSR          = Value(0x7b0.U(12.W))
-  val DPC           = Value(0x7b1.U(12.W))
-  val DSCRATCH0     = Value(0x7b2.U(12.W))
-  val DSCRATCH1     = Value(0x7b3.U(12.W))
-  val MCONTEXT0     = Value(0x7c0.U(12.W))
-  val MCONTEXT1     = Value(0x7c1.U(12.W))
-  val MCONTEXT2     = Value(0x7c2.U(12.W))
-  val MCONTEXT3     = Value(0x7c3.U(12.W))
-  val MCONTEXT4     = Value(0x7c4.U(12.W))
-  val MCONTEXT5     = Value(0x7c5.U(12.W))
-  val MCONTEXT6     = Value(0x7c6.U(12.W))
-  val MCONTEXT7     = Value(0x7c7.U(12.W))
-  val MPC           = Value(0x7e0.U(12.W))
-  val MSP           = Value(0x7e1.U(12.W))
-  val MCYCLE        = Value(0xb00.U(12.W))
-  val MINSTRET      = Value(0xb02.U(12.W))
-  val MCYCLEH       = Value(0xb80.U(12.W))
-  val MINSTRETH     = Value(0xb82.U(12.W))
-  val VL            = Value(0xc20.U(12.W))
-  val VTYPE         = Value(0xc21.U(12.W))
-  val VLENB         = Value(0xc22.U(12.W))
-  val MTYPE         = Value(0xc23.U(12.W))
-  val MVENDORID     = Value(0xf11.U(12.W))
-  val MARCHID       = Value(0xf12.U(12.W))
-  val MIMPID        = Value(0xf13.U(12.W))
-  val MHARTID       = Value(0xf14.U(12.W))
-  val KISA          = Value(0xfc0.U(12.W))
-  val KSCM0         = Value(0xfc4.U(12.W))
-  val KSCM1         = Value(0xfc8.U(12.W))
-  val KSCM2         = Value(0xfcc.U(12.W))
-  val KSCM3         = Value(0xfd0.U(12.W))
-  val KSCM4         = Value(0xfd4.U(12.W))
-}
-
 object CsrMode extends ChiselEnum {
   val Machine = Value(0.U(2.W))
   val Debug   = Value(2.U(2.W))
@@ -186,10 +127,6 @@ object DebugCause extends ChiselEnum {
   val other        = 7.U(3.W)
 }
 
-class CsrCounters(p: Parameters) extends Bundle {
-  val nRetired = UInt(log2Ceil(p.retirementLanes + 1).W)
-}
-
 class CsrBruIO(p: Parameters) extends Bundle {
   val in = new Bundle {
     val mode   = Valid(CsrMode())
@@ -217,7 +154,8 @@ class CsrBruIO(p: Parameters) extends Bundle {
 }
 
 class Csr(p: Parameters) extends Module {
-  val io = IO(new Bundle {
+  val pmu = IO(new PmuCsrIO(p))
+  val io  = IO(new Bundle {
     // Reset and shutdown.
     val csr = new CsrInOutIO(p)
 
@@ -236,8 +174,6 @@ class Csr(p: Parameters) extends Module {
     val vme_dirty    = Option.when(p.enableVme)(Input(Bool()))
     val vme_fp_dirty = Option.when(p.enableVme && p.enableFloat)(Input(Bool()))
     val mstatus_ms   = Option.when(p.enableVme)(Output(UInt(2.W)))
-
-    val counters = Input(new CsrCounters(p))
 
     // Pipeline Control.
     val halted = Output(Bool())
@@ -326,15 +262,6 @@ class Csr(p: Parameters) extends Module {
   val mepc         = RegInit(0.U(p.programCounterBits.W))
   val mhartid      = RegInit(p.hartId.U(p.xlen.W))
 
-  val mcycle                    = RegInit(0.U(64.W))
-  val minstret                  = RegInit(0.U(64.W))
-  val minstretThisCycle_delayed = Wire(UInt(64.W))
-  val minstret_val              = minstret + minstretThisCycle_delayed
-  val mcountinhibit             = RegInit(0.U(p.xlen.W))
-  // nRetired is delayed one cycle by retirement buffer
-  // Delay inhibition as well to match behavior
-  val minstret_inhibit_delayed  = RegNext(mcountinhibit(2), false.B)
-
   // MXLEN, I,M,X extensions
   val misaValue = (if (p.xlen == 32) BigInt(0x40801100L) else BigInt("8000000000801100", 16)) |
     (if (p.enableFloat) { BigInt(1) << 5 }
@@ -366,9 +293,11 @@ class Csr(p: Parameters) extends Module {
   }
   val mstatus_sd = (fs_val === 3.U) || (vs_val === 3.U) || (ms_val === 3.U)
 
+  val pmuEn = PmuCsrAddress.decode(req.bits.index, p.xlen).supported
+
   // Decode the Index.
-  val (csr_address, csr_address_valid) = CsrAddress.safe(req.bits.index)
-  assert(!(req.valid && !csr_address_valid))
+  val (csr_address, _) = CsrAddress.safe(req.bits.index)
+  assert(!(req.valid && !CsrAddress.isSupported(req.bits.index, p.xlen)))
   val fflagsEn   = csr_address === CsrAddress.FFLAGS
   val frmEn      = csr_address === CsrAddress.FRM
   val fcsrEn     = csr_address === CsrAddress.FCSR
@@ -406,12 +335,6 @@ class Csr(p: Parameters) extends Module {
   val mcontext7En = csr_address === CsrAddress.MCONTEXT7
   val mpcEn       = csr_address === CsrAddress.MPC
   val mspEn       = csr_address === CsrAddress.MSP
-  // M-mode performance CSRs.
-  val mcycleEn        = csr_address === CsrAddress.MCYCLE
-  val minstretEn      = csr_address === CsrAddress.MINSTRET
-  val mcyclehEn       = csr_address === CsrAddress.MCYCLEH
-  val minstrethEn     = csr_address === CsrAddress.MINSTRETH
-  val mcountinhibitEn = csr_address === CsrAddress.MCOUNTINHIBIT
   // Vector CSRs.
   val vlenbEn = Option.when(p.enableRvv) { csr_address === CsrAddress.VLENB }
   // Matrix CSRs (Zvt). Read-only; updated by mset* through the RVV frontend.
@@ -454,16 +377,7 @@ class Csr(p: Parameters) extends Module {
   val rs1 = io.rs1.data
 
   // Helper to compute local write data to avoid global rdata/wdata timing paths
-  private def localWdata(reg_val: UInt): UInt = {
-    val padded = reg_val.pad(p.xlen)
-    MuxLookup(req.bits.op, 0.U(p.xlen.W))(
-      Seq(
-        CsrOp.CSRRW -> rs1,
-        CsrOp.CSRRS -> (padded | rs1),
-        CsrOp.CSRRC -> (padded & ~rs1)
-      )
-    )
-  }
+  private def localWdata(reg_val: UInt): UInt = CsrOp.writeData(req.bits.op, reg_val, rs1)
 
   // WARL legalization for FS and VS: Coral NPU does not support disabling the
   // extension units (00 -> 11 Dirty).
@@ -514,48 +428,40 @@ class Csr(p: Parameters) extends Module {
   val rdata = MuxUpTo1H(
     0.U(p.xlen.W),
     Seq(
-      fflagsEn        -> fflagsWord(fflags),
-      frmEn           -> frmWord(frm),
-      fcsrEn          -> fcsrWord(fcsr),
-      mstatusEn       -> mstatusWord(mstatus_mie, mstatus_mpie, fs_val, vs_val, ms_val, mstatus_sd),
-      misaEn          -> misa,
-      mieEn           -> mie,
-      mipEn           -> mip,
-      mtvecEn         -> mtvec,
-      mscratchEn      -> mscratch,
-      mepcEn          -> mepc,
-      mcauseEn        -> mcause,
-      mtvalEn         -> mtval,
-      mcontext0En     -> mcontext0,
-      mcontext1En     -> mcontext1,
-      mcontext2En     -> mcontext2,
-      mcontext3En     -> mcontext3,
-      mcontext4En     -> mcontext4,
-      mcontext5En     -> mcontext5,
-      mcontext6En     -> mcontext6,
-      mcontext7En     -> mcontext7,
-      mpcEn           -> mpc,
-      mspEn           -> msp,
-      mcycleEn        -> (if (p.xlen == 32) mcycle(31, 0) else mcycle),
-      minstretEn      -> (if (p.xlen == 32) minstret_val(31, 0) else minstret_val),
-      mcountinhibitEn -> mcountinhibit,
-      mvendoridEn     -> mvendorid,
-      marchidEn       -> Cat(0.U((p.xlen - 1).W), marchid),
-      mimpidEn        -> Cat(0.U((p.xlen - 1).W), mimpid),
-      mhartidEn       -> mhartid,
-      kisaEn          -> kisa,
-      kscm0En         -> kscm(31, 0),
-      kscm1En         -> kscm(63, 32),
-      kscm2En         -> kscm(95, 64),
-      kscm3En         -> kscm(127, 96),
-      kscm4En         -> kscm(159, 128)
-    ) ++ (if (p.xlen == 32)
-            Seq(
-              mcyclehEn   -> mcycle(63, 32),
-              minstrethEn -> minstret_val(63, 32),
-              mstatushEn  -> 0.U(32.W)
-            )
-          else Seq()) ++
+      fflagsEn    -> fflagsWord(fflags),
+      frmEn       -> frmWord(frm),
+      fcsrEn      -> fcsrWord(fcsr),
+      mstatusEn   -> mstatusWord(mstatus_mie, mstatus_mpie, fs_val, vs_val, ms_val, mstatus_sd),
+      misaEn      -> misa,
+      mieEn       -> mie,
+      mipEn       -> mip,
+      mtvecEn     -> mtvec,
+      mscratchEn  -> mscratch,
+      mepcEn      -> mepc,
+      mcauseEn    -> mcause,
+      mtvalEn     -> mtval,
+      mcontext0En -> mcontext0,
+      mcontext1En -> mcontext1,
+      mcontext2En -> mcontext2,
+      mcontext3En -> mcontext3,
+      mcontext4En -> mcontext4,
+      mcontext5En -> mcontext5,
+      mcontext6En -> mcontext6,
+      mcontext7En -> mcontext7,
+      mpcEn       -> mpc,
+      mspEn       -> msp,
+      pmuEn       -> pmu.response.readData,
+      mvendoridEn -> mvendorid,
+      marchidEn   -> Cat(0.U((p.xlen - 1).W), marchid),
+      mimpidEn    -> Cat(0.U((p.xlen - 1).W), mimpid),
+      mhartidEn   -> mhartid,
+      kisaEn      -> kisa,
+      kscm0En     -> kscm(31, 0),
+      kscm1En     -> kscm(63, 32),
+      kscm2En     -> kscm(95, 64),
+      kscm3En     -> kscm(127, 96),
+      kscm4En     -> kscm(159, 128)
+    ) ++ (if (p.xlen == 32) Seq(mstatushEn -> 0.U(32.W)) else Seq()) ++
       Option
         .when(p.enableRvv) {
           Seq(
@@ -589,23 +495,19 @@ class Csr(p: Parameters) extends Module {
       )
   )
 
-  val wdata = MuxLookup(req.bits.op, 0.U)(
-    Seq(
-      CsrOp.CSRRW -> rs1,
-      CsrOp.CSRRS -> (rdata | rs1),
-      CsrOp.CSRRC -> (rdata & ~rs1)
-    )
-  )
+  val wdata = CsrOp.writeData(req.bits.op, rdata, rs1)
 
   val mtvec_w = Cat(localWdata(mtvec)(p.programCounterBits - 1, 2), 0.U(2.W))
 
   val is_csr_write =
-    req.valid && !(req.bits.op.isOneOf(CsrOp.CSRRS, CsrOp.CSRRC) && req.bits.rs1 === 0.U)
+    req.valid && CsrOp.writesRegister(req.bits.op, req.bits.rs1)
 
-  val mcountinhibit_wdata = localWdata(mcountinhibit) & 0x5.U(p.xlen.W)
-  when(is_csr_write && mcountinhibitEn) {
-    mcountinhibit := mcountinhibit_wdata
-  }
+  // Command is already registered, operand comes from execute-stage register-file/DM mux
+  pmu.request.valid   := req.valid && pmuEn
+  pmu.request.address := req.bits.index
+  pmu.request.op      := req.bits.op
+  pmu.request.operand := rs1
+  pmu.request.write   := is_csr_write
 
   val float_dirty_event = Option.when(p.enableFloat) {
     (is_csr_write && (fflagsEn || frmEn || fcsrEn)) ||
@@ -685,44 +587,6 @@ class Csr(p: Parameters) extends Module {
     io.rvv.get.vxrm_write.bits    := wdata(1, 0)
     io.rvv.get.vxsat_write.valid  := req.valid && vxsatEn.get
     io.rvv.get.vxsat_write.bits   := wdata(0)
-  }
-
-  // mcycle implementation
-  if (p.xlen == 32) {
-    val mcycle_th      = Mux(mcyclehEn, wdata, mcycle(63, 32))
-    val mcycle_tl      = Mux(mcycleEn, wdata, mcycle(31, 0))
-    val mcycle_t       = Cat(mcycle_th, mcycle_tl)
-    val mcycle_written = is_csr_write && (mcycleEn || mcyclehEn)
-    mcycle := Mux(mcycle_written, mcycle_t, mcycle + !mcountinhibit(0))
-  } else {
-    val mcycle_written = is_csr_write && mcycleEn
-    mcycle := Mux(mcycle_written, wdata, mcycle + !mcountinhibit(0))
-  }
-
-  // minstret implementation
-  if (p.xlen == 32) {
-    val minstret_th      = Mux(minstrethEn, wdata, minstret(63, 32))
-    val minstret_tl      = Mux(minstretEn, wdata, minstret(31, 0))
-    val minstret_t       = Cat(minstret_th, minstret_tl)
-    val minstret_written = is_csr_write && (minstretEn || minstrethEn)
-    // Delay write mask by 1 cycle to match the retirement buffer latency
-    // and prevent dropping retired instructions during CSR writes.
-    val minstret_written_delayed = RegNext(minstret_written, false.B)
-    minstretThisCycle_delayed := Mux(
-      minstret_written_delayed || minstret_inhibit_delayed,
-      0.U,
-      io.counters.nRetired
-    )
-    minstret := Mux(minstret_written, minstret_t, minstret + minstretThisCycle_delayed)
-  } else {
-    val minstret_written         = is_csr_write && minstretEn
-    val minstret_written_delayed = RegNext(minstret_written, false.B)
-    minstretThisCycle_delayed := Mux(
-      minstret_written_delayed || minstret_inhibit_delayed,
-      0.U,
-      io.counters.nRetired
-    )
-    minstret := Mux(minstret_written, wdata, minstret + minstretThisCycle_delayed)
   }
 
   val trigger_enabled = tdata1.isTrigger6 && tdata1.m
@@ -866,10 +730,10 @@ class Csr(p: Parameters) extends Module {
   io.csr.out.value(1) := mepc
   io.csr.out.value(2) := mtval
   io.csr.out.value(3) := mcause
-  io.csr.out.value(4) := mcycle(31, 0)
-  io.csr.out.value(5) := mcycle(63, 32)
-  io.csr.out.value(6) := minstret(31, 0)
-  io.csr.out.value(7) := minstret(63, 32)
+  io.csr.out.value(4) := pmu.status.cycle(31, 0)
+  io.csr.out.value(5) := pmu.status.cycle(63, 32)
+  io.csr.out.value(6) := pmu.status.instret(31, 0)
+  io.csr.out.value(7) := pmu.status.instret(63, 32)
   io.csr.out.value(8) := mcontext0
 
   // Write port.
@@ -905,7 +769,7 @@ class Csr(p: Parameters) extends Module {
       fcsrEn     -> fcsrWord(fcsr_w),
       tdata1En   -> LegalizeTdata1(wdata).asWord,
       tinfoEn    -> tinfo,
-      mcountinhibitEn -> mcountinhibit_wdata,
+      pmuEn      -> pmu.response.writeData
     ) ++ Seq(
       vstartEn.map(_ -> vstartWord(wdata)),
       vxrmEn.map(_ -> vxrmWord(wdata)),
@@ -913,9 +777,7 @@ class Csr(p: Parameters) extends Module {
     ).flatten
   )
 
-  val is_read_only = req.bits.index(11, 10) === 3.U
-
-  io.trace.valid := is_csr_write && !is_read_only
+  io.trace.valid := is_csr_write && CsrAddress.canAccess(req.bits.index, p.xlen, true.B)
   io.trace.addr  := req.bits.index
   io.trace.data  := trace_data
 

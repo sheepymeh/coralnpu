@@ -14,6 +14,10 @@ instructions retired (successfully completed) by the processor.
 
 Machine Counter Inhibit (mcountinhibit): Keep counters frozen while reading them for a stable snapshot.
 
+`numProgrammableHpmCounters` configures 0-29 programmable
+counters (default 4), excluding `mcycle` and `minstret`. Slots start at
+`mhpmcounter3`.
+
 Cycles and instructions are read from registers via assembly interface for example:
 
 ```c

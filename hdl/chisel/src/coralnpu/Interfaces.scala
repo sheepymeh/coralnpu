@@ -330,6 +330,21 @@ object CsrOp extends ChiselEnum {
   val CSRRW = Value
   val CSRRS = Value
   val CSRRC = Value
+
+  // rs1 is register index or zimm, zero suppresses writes only for CSRRS/CSRRC
+  def writesRegister(op: Type, rs1: UInt): Bool =
+    !(op.isOneOf(CSRRS, CSRRC) && rs1 === 0.U)
+
+  def writeData(op: Type, readData: UInt, operand: UInt): UInt = {
+    val padded = readData.pad(operand.getWidth)
+    MuxLookup(op, 0.U(operand.getWidth.W))(
+      Seq(
+        CSRRW -> operand,
+        CSRRS -> (padded | operand),
+        CSRRC -> (padded & ~operand)
+      )
+    )
+  }
 }
 
 class CsrCmd(p: Parameters) extends Bundle {

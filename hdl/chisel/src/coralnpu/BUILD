@@ -278,7 +278,19 @@ chisel_test(
         ":coralnpu_base",
         ":coralnpu_float",
         ":coralnpu_scalar",
+        ":hart_pmu",
         "//hdl/chisel/src/common:testing",
+    ],
+)
+
+chisel_test(
+    name = "coralnpu_hart_pmu_tests",
+    srcs = [
+        "HartPmuTest.scala",
+    ],
+    deps = [
+        ":coralnpu_base",
+        ":hart_pmu",
     ],
 )
 
@@ -440,6 +452,7 @@ autogen_scm_info(name = "CoralNPUScmInfo")
 chisel_library(
     name = "coralnpu_base",
     srcs = [
+        "CsrAddress.scala",
         "DBus2Axi.scala",
         "IBus2Axi.scala",
         "Interfaces.scala",
@@ -451,6 +464,17 @@ chisel_library(
         "//hdl/chisel/src/bus",
         "//hdl/chisel/src/common",
         "//hdl/chisel/src/common:fp",
+    ],
+)
+
+chisel_library(
+    name = "hart_pmu",
+    srcs = [
+        "HartPmu.scala",
+    ],
+    deps = [
+        ":coralnpu_base",
+        "//hdl/chisel/src/common",
     ],
 )
 
@@ -475,6 +499,7 @@ chisel_library(
         ":coralnpu_base",
         ":coralnpu_float",
         ":coralnpu_rvv",
+        ":hart_pmu",
         ":retirement_buffer",
         ":rvvi_trace",
         "//hdl/chisel/src/common",

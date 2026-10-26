@@ -940,11 +940,9 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
         ),
         CsrOp
       )
-      val csr_bits_index                   = io.inst(0).bits.inst(31, 20)
-      val (csr_address, csr_address_valid) = CsrAddress.safe(csr_bits_index)
-      val is_csr_write     = !(csr.bits.isOneOf(CsrOp.CSRRS, CsrOp.CSRRC) && rs1Addr(0) === 0.U)
-      val is_csr_read_only = csr_bits_index(11, 10) === 3.U
-      val csr_op_valid     = csr_address_valid && !(is_csr_write && is_csr_read_only)
+      val csr_bits_index = io.inst(0).bits.inst(31, 20)
+      val is_csr_write   = CsrOp.writesRegister(csr.bits, rs1Addr(0))
+      val csr_op_valid   = CsrAddress.canAccess(csr_bits_index, p.xlen, is_csr_write)
       // Stall reads of vxsat (0x009), vcsr (0x00F), and (when VME is enabled)
       // mtype (0xC23) until the vector unit is idle. These CSRs can be
       // modified by in-flight vector instructions: saturating arithmetic sets

@@ -76,6 +76,9 @@ class Parameters(var m: Seq[MemoryRegion] = Seq(), val hartId: Int = 0, var xlen
   val instructionBits    = 32
   val instructionLanes   = 4
 
+  // mhpmcounter3 onward, excluding mcycle and minstret
+  var numProgrammableHpmCounters = 4
+
   // Enable extra logic for verification purposes.
   var enableVerification = false
 
@@ -197,6 +200,7 @@ class Parameters(var m: Seq[MemoryRegion] = Seq(), val hartId: Int = 0, var xlen
 
   def augmentId(extraBits: Int): Parameters = {
     val newP = new Parameters(m, hartId, xlen)
+    newP.numProgrammableHpmCounters = this.numProgrammableHpmCounters
     newP.enableVerification = this.enableVerification
     newP.rawExposeDebugPorts = this.rawExposeDebugPorts
     newP.enableRvv = this.enableRvv

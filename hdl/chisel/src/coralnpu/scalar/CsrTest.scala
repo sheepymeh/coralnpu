@@ -18,13 +18,23 @@ import chisel3._
 import chisel3.simulator.scalatest.ChiselSim
 import org.scalatest.freespec.AnyFreeSpec
 
+class CsrPmuHarness(p: Parameters) extends Module {
+  val csr      = Module(new Csr(p))
+  val pmu      = Module(new HartPmu(p))
+  val io       = IO(chiselTypeOf(csr.io))
+  val counters = IO(Input(new HartPmuEvents(p)))
+  csr.io <> io
+  csr.pmu <> pmu.io.csr
+  pmu.io.events := counters
+}
+
 class CsrSpec extends AnyFreeSpec with ChiselSim {
   val p = new Parameters
   p.enableFloat = true
   p.enableRvv = true
   p.enableVerification = true
 
-  def initDut(dut: Csr): Unit = {
+  def initDut(dut: CsrPmuHarness): Unit = {
     for (i <- 0 until p.csrInCount) {
       dut.io.csr.in.value(i).poke(0.U)
     }
@@ -40,7 +50,7 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
     dut.io.bru.in.halt.poke(false.B)
     dut.io.bru.in.fault.poke(false.B)
     dut.io.bru.in.wfi.poke(false.B)
-    dut.io.counters.nRetired.poke(0.U)
+    dut.counters.nRetired.poke(0.U)
     dut.io.dm.debug_req.poke(false.B)
     dut.io.dm.resume_req.poke(false.B)
     dut.io.dm.current_pc.poke(0.U)
@@ -67,83 +77,181 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
     dut.io.rs1.data.poke(0.U)
   }
 
+  // Reads use rs1=x0, writes return legalized trace data
+  def access_csr(
+    dut: CsrPmuHarness,
+    address: CsrAddress.Type,
+    value: Option[BigInt] = None,
+    op: CsrOp.Type = CsrOp.CSRRW
+  ): BigInt = {
+    dut.io.req.valid.poke(true.B)
+    dut.io.req.bits.index.poke(address.litValue.U)
+    dut.io.req.bits.op.poke(if (value.isDefined) op else CsrOp.CSRRS)
+    dut.io.req.bits.rs1.poke((if (value.isDefined) 5 else 0).U)
+    dut.io.rs1.data.poke(value.getOrElse(BigInt(0)).U)
+    dut.clock.step()
+    dut.io.trace.valid.expect(value.isDefined.B)
+    val result =
+      if (value.isDefined) dut.io.trace.data.peek().litValue
+      else dut.io.rd.bits.data.peek().litValue
+    dut.io.req.valid.poke(false.B)
+    dut.clock.step()
+    result
+  }
+
   for (xlen <- Seq(32, 64)) {
     s"RV$xlen cycle and retirement counter inhibition" in {
       val parameters = new Parameters(xlen = xlen)
+      parameters.numProgrammableHpmCounters = 0
       parameters.enableFloat = true
       parameters.enableRvv = true
       parameters.enableVerification = true
-      simulate(new Csr(parameters)) { dut =>
+      simulate(new CsrPmuHarness(parameters)) { dut =>
         initDut(dut)
         dut.clock.step()
 
-        // Use CSRRS with rs1=x0 for reads, CSRRW for writes
-        def access_csr(address: CsrAddress.Type, value: Option[BigInt] = None): BigInt = {
-          dut.io.req.valid.poke(true.B)
-          dut.io.req.bits.index.poke(address.litValue.U)
-          dut.io.req.bits.op.poke(if (value.isDefined) CsrOp.CSRRW else CsrOp.CSRRS)
-          dut.io.req.bits.rs1.poke((if (value.isDefined) 5 else 0).U)
-          dut.io.rs1.data.poke(value.getOrElse(BigInt(0)).U)
-          dut.clock.step()
-          dut.io.trace.valid.expect(value.isDefined.B)
-          val result =
-            if (value.isDefined) dut.io.trace.data.peek().litValue
-            else dut.io.rd.bits.data.peek().litValue
-          dut.io.req.valid.poke(false.B)
-          dut.clock.step()
-          result
-        }
-
         // Check reset value, writable-bit masking, and inhibition of both counters
-        assert(access_csr(CsrAddress.MCOUNTINHIBIT) == 0)
-        assert(access_csr(CsrAddress.MCOUNTINHIBIT, Some((BigInt(1) << xlen) - 1)) == 5)
-        val cycles = access_csr(CsrAddress.MCYCLE)
-        dut.io.counters.nRetired.poke(2.U)
+        assert(access_csr(dut, CsrAddress.MCOUNTINHIBIT) == 0)
+        assert(access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some((BigInt(1) << xlen) - 1)) == 5)
+        val cycles = access_csr(dut, CsrAddress.MCYCLE)
+        dut.counters.nRetired.poke(2.U)
         dut.clock.step(3)
-        dut.io.counters.nRetired.poke(0.U)
-        assert(access_csr(CsrAddress.MCYCLE) == cycles)
-        assert(access_csr(CsrAddress.MINSTRET) == 0)
+        dut.counters.nRetired.poke(0.U)
+        assert(access_csr(dut, CsrAddress.MCYCLE) == cycles)
+        assert(access_csr(dut, CsrAddress.MINSTRET) == 0)
 
         // Counter writes remain effective while counting is inhibited
-        access_csr(CsrAddress.MCYCLE, Some(10))
-        access_csr(CsrAddress.MINSTRET, Some(20))
-        assert(access_csr(CsrAddress.MCYCLE) == 10)
-        assert(access_csr(CsrAddress.MINSTRET) == 20)
+        access_csr(dut, CsrAddress.MCYCLE, Some(10))
+        access_csr(dut, CsrAddress.MINSTRET, Some(20))
+        assert(access_csr(dut, CsrAddress.MCYCLE) == 10)
+        assert(access_csr(dut, CsrAddress.MINSTRET) == 20)
 
         // Clear CY independently while IR keeps retirement count frozen
-        access_csr(CsrAddress.MCOUNTINHIBIT, Some(4))
-        dut.io.counters.nRetired.poke(2.U)
+        access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(4))
+        dut.counters.nRetired.poke(2.U)
         dut.clock.step(3)
-        dut.io.counters.nRetired.poke(0.U)
-        assert(access_csr(CsrAddress.MCYCLE) > 10)
-        assert(access_csr(CsrAddress.MINSTRET) == 20)
+        dut.counters.nRetired.poke(0.U)
+        assert(access_csr(dut, CsrAddress.MCYCLE) > 10)
+        assert(access_csr(dut, CsrAddress.MINSTRET) == 20)
 
         // Unfreezing instruction is excluded from retirement
-        access_csr(CsrAddress.MCOUNTINHIBIT, Some(1))
-        dut.io.counters.nRetired.poke(1.U)
+        access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(1))
+        dut.counters.nRetired.poke(1.U)
         dut.clock.step()
         dut.io.csr.out.value(6).expect(20.U)
-        dut.io.counters.nRetired.poke(2.U)
+        dut.counters.nRetired.poke(2.U)
         dut.clock.step()
-        dut.io.counters.nRetired.poke(0.U)
-        assert(access_csr(CsrAddress.MINSTRET) == 22)
-        val frozenCycles = access_csr(CsrAddress.MCYCLE)
+        dut.counters.nRetired.poke(0.U)
+        assert(access_csr(dut, CsrAddress.MINSTRET) == 22)
+        val frozenCycles = access_csr(dut, CsrAddress.MCYCLE)
 
         // Freezing instruction still retires under previous IR setting
-        access_csr(CsrAddress.MCOUNTINHIBIT, Some(5))
-        dut.io.counters.nRetired.poke(1.U)
+        access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(5))
+        dut.counters.nRetired.poke(1.U)
         dut.clock.step()
-        dut.io.counters.nRetired.poke(2.U)
+        dut.counters.nRetired.poke(2.U)
         dut.clock.step(3)
-        dut.io.counters.nRetired.poke(0.U)
-        assert(access_csr(CsrAddress.MINSTRET) == 23)
-        assert(access_csr(CsrAddress.MCYCLE) == frozenCycles)
+        dut.counters.nRetired.poke(0.U)
+        assert(access_csr(dut, CsrAddress.MINSTRET) == 23)
+        assert(access_csr(dut, CsrAddress.MCYCLE) == frozenCycles)
+      }
+    }
+  }
+
+  for ((xlen, num_programmable_counters) <- Seq((32, 0), (32, 4), (64, 29))) {
+    s"RV$xlen HPM register bank with $num_programmable_counters programmable counters" in {
+      val parameters = new Parameters(xlen = xlen)
+      parameters.numProgrammableHpmCounters = num_programmable_counters
+      parameters.enableFloat = true
+      parameters.enableRvv = true
+      parameters.enableVerification = true
+      simulate(new CsrPmuHarness(parameters)) { dut =>
+        initDut(dut)
+        dut.clock.step()
+
+        // Mask covers implemented slots, CY and IR, including bit 31 at maximum size
+        val inhibit_mask = (((BigInt(1) << num_programmable_counters) - 1) << 3) | 5
+        val word_mask    = (BigInt(1) << xlen) - 1
+        assert(access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(word_mask)) == inhibit_mask)
+        assert(access_csr(dut, CsrAddress.MCOUNTINHIBIT) == inhibit_mask)
+
+        // First and last architectural slots cover implemented and zero-backed storage
+        val slots = Seq(
+          (
+            CsrAddress.MHPMCOUNTER3,
+            CsrAddress.MHPMCOUNTER3H,
+            CsrAddress.HPMCOUNTER3,
+            CsrAddress.HPMCOUNTER3H,
+            CsrAddress.MHPMEVENT3,
+            num_programmable_counters > 0
+          ),
+          (
+            CsrAddress.MHPMCOUNTER31,
+            CsrAddress.MHPMCOUNTER31H,
+            CsrAddress.HPMCOUNTER31,
+            CsrAddress.HPMCOUNTER31H,
+            CsrAddress.MHPMEVENT31,
+            num_programmable_counters == 29
+          )
+        )
+        for ((low, high, alias, alias_high, selector, implemented) <- slots) {
+          val initial  = BigInt("123456789abcdef0", 16)
+          val expected = if (implemented) initial else BigInt(0)
+          assert(access_csr(dut, low, Some(initial & word_mask)) == (expected & word_mask))
+          if (xlen == 32) {
+            assert(access_csr(dut, high, Some(initial >> 32)) == expected >> 32)
+          }
+          assert(access_csr(dut, alias) == (expected & word_mask))
+
+          // Read-modify-write preserves untouched RV32 high half
+          val cleared = (expected & word_mask) & ~BigInt(0xff)
+          assert(access_csr(dut, low, Some(0xff), CsrOp.CSRRC) == cleared)
+          assert(access_csr(dut, alias) == cleared)
+          if (xlen == 32) assert(access_csr(dut, alias_high) == expected >> 32)
+
+          // Until events are added, selectors support only disabled event 0
+          assert(access_csr(dut, selector, Some(word_mask)) == 0)
+          assert(access_csr(dut, selector) == 0)
+        }
+
+        if (num_programmable_counters == 4) {
+          // Consecutive commands must use execute-stage operands
+          access_csr(dut, CsrAddress.MHPMCOUNTER3, Some(0))
+          dut.io.req.valid.poke(true.B)
+          dut.io.req.bits.index.poke(CsrAddress.MHPMCOUNTER3.litValue.U)
+          dut.io.req.bits.rs1.poke(5.U)
+          dut.io.req.bits.op.poke(CsrOp.CSRRW)
+          dut.io.rs1.data.poke(0xdead.U)
+          dut.clock.step()
+          dut.io.rd.bits.data.expect(0.U)
+          dut.io.rs1.data.poke(0x15.U)
+          dut.io.trace.valid.expect(true.B)
+          dut.io.trace.data.expect(0x15.U)
+
+          // RMW observes committed state and the next execute-stage operand
+          dut.io.req.bits.op.poke(CsrOp.CSRRS)
+          dut.clock.step()
+          dut.io.rs1.data.poke(0x20.U)
+          dut.io.rd.bits.data.expect(0x15.U)
+          dut.io.trace.data.expect(0x35.U)
+
+          // Reading with rs1=x0 must not emit a write trace
+          dut.io.req.bits.rs1.poke(0.U)
+          dut.clock.step()
+          dut.io.rs1.data.poke(0.U)
+          dut.io.rd.bits.data.expect(0x35.U)
+          dut.io.trace.valid.expect(false.B)
+          dut.io.req.valid.poke(false.B)
+          dut.clock.step(2)
+          dut.io.rd.valid.expect(false.B)
+          dut.io.trace.valid.expect(false.B)
+        }
       }
     }
   }
 
   "CSR Operations" in {
-    simulate(new Csr(p)) { dut =>
+    simulate(new CsrPmuHarness(p)) { dut =>
       initDut(dut)
       dut.clock.step()
 

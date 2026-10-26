@@ -53,7 +53,9 @@ class SCore(p: Parameters) extends Module {
   val fetch   = Module(new UncachedFetch(p))
   // L0 fetch removed (was: else Module(new UncachedFetch(p)))
 
-  val csr      = Csr(p)
+  val csr = Csr(p)
+  val pmu = Module(new HartPmu(p))
+  csr.pmu <> pmu.io.csr
   val dispatch = Module(new DispatchV2(p))
 
   val lsu               = Lsu(p)
@@ -204,7 +206,7 @@ class SCore(p: Parameters) extends Module {
   bru(0).io.csr.get <> csr.io.bru
 
   // Instruction counters
-  csr.io.counters.nRetired := rob_io.nRetired
+  pmu.io.events.nRetired := rob_io.nRetired
 
   // ---------------------------------------------------------------------------
   // Control Status Unit
