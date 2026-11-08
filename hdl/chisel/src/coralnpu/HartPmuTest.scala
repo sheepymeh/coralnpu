@@ -12,13 +12,14 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
     dut.io.csr.request.operand.poke(0.U)
     dut.io.csr.request.write.poke(false.B)
     dut.io.events.nRetired.poke(0.U)
-    dut.io.events.memory.lsuRequests.poke(0.U)
-    dut.io.events.memory.lsuStallCycles.poke(false.B)
-    dut.io.events.memory.dtcmReadBytes.poke(0.U)
-    dut.io.events.memory.dtcmWriteBytes.poke(0.U)
-    dut.io.events.memory.externalWaitCycles.poke(false.B)
-    dut.io.events.memory.externalReadBytes.poke(0.U)
-    dut.io.events.memory.externalWriteBytes.poke(0.U)
+    val events = dut.io.events.memory.get
+    events.lsuRequests.poke(0.U)
+    events.lsuStallCycles.poke(false.B)
+    events.dtcmReadBytes.poke(0.U)
+    events.dtcmWriteBytes.poke(0.U)
+    events.externalWaitCycles.poke(false.B)
+    events.externalReadBytes.poke(0.U)
+    events.externalWriteBytes.poke(0.U)
     dut.clock.step()
   }
 
@@ -53,7 +54,7 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
       }
 
       // Drive all sources to check selector isolation and increment sizes
-      val events = dut.io.events.memory
+      val events = dut.io.events.memory.get
       events.lsuRequests.poke(3.U)
       events.lsuStallCycles.poke(true.B)
       events.dtcmReadBytes.poke(p.lsuDataBytes.U)

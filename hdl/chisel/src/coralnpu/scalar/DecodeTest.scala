@@ -293,25 +293,26 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
 
   "LSU capacity stall attribution" in {
     simulate(new DispatchV2(p)) { dut =>
+      val lsuStall = dut.io.lsuStall.get
       // Observe a blocked load before request valid is suppressed
       DispatchTestUtils.initialize(dut, p)
       instruction(dut, 0, load(1))
       dut.io.lsuQueueCapacity.poke(0.U)
-      dut.io.lsuStall.expect(true.B)
+      lsuStall.expect(true.B)
       dut.io.lsu(0).valid.expect(false.B)
       dut.io.inst(0).ready.expect(false.B)
 
       dut.io.lsuQueueCapacity.poke(1.U)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
       dut.io.lsu(0).valid.expect(true.B)
       dut.io.inst(0).ready.expect(true.B)
 
       // Empty and non-memory instructions do not stall on LSU capacity
       dut.io.lsuQueueCapacity.poke(0.U)
       dut.io.inst(0).valid.poke(false.B)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
       instruction(dut, 0, add(1))
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
       dut.io.inst(0).ready.expect(true.B)
 
       // Exclude cycles already blocked by other dispatch conditions
@@ -324,9 +325,9 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
         DispatchTestUtils.initialize(dut, p)
         instruction(dut, 0, load(1))
         dut.io.lsuQueueCapacity.poke(0.U)
-        dut.io.lsuStall.expect(true.B)
+        lsuStall.expect(true.B)
         block(dut)
-        dut.io.lsuStall.expect(false.B)
+        lsuStall.expect(false.B)
         dut.io.inst(0).ready.expect(false.B)
       }
 
@@ -339,21 +340,21 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
       dut.io.inst(0).ready.expect(true.B)
       dut.io.inst(1).ready.expect(true.B)
       dut.io.inst(2).ready.expect(false.B)
-      dut.io.lsuStall.expect(true.B)
+      lsuStall.expect(true.B)
 
       // Enough entries allow all lanes to dispatch
       dut.io.lsuQueueCapacity.poke(2.U)
       dut.io.inst(2).ready.expect(true.B)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
 
       // A missing or blocked older instruction must not report a younger LSU stall
       dut.io.lsuQueueCapacity.poke(1.U)
       dut.io.inst(0).valid.poke(false.B)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
 
       instruction(dut, 0, load(1))
       dut.io.scoreboard.comb.poke((1 << 1).U)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
 
       // Backpressure on an older non-LSU unit takes precedence
       DispatchTestUtils.initialize(dut, p)
@@ -362,11 +363,11 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
       instruction(dut, 2, load(3))
       dut.io.lsuQueueCapacity.poke(1.U)
       dut.io.mlu(0).ready.poke(false.B)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
       dut.io.mlu(0).ready.poke(true.B)
       dut.io.inst(1).ready.expect(true.B)
       dut.io.inst(2).ready.expect(false.B)
-      dut.io.lsuStall.expect(true.B)
+      lsuStall.expect(true.B)
     }
   }
 
@@ -374,22 +375,23 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
     val vector_parameters = new Parameters()
     vector_parameters.enableRvv = true
     simulate(new DispatchV2(vector_parameters)) { dut =>
+      val lsuStall = dut.io.lsuStall.get
       DispatchTestUtils.initialize(dut, vector_parameters)
       instruction(dut, 0, BigInt("02050087", 16)) // vle8.v v1, (x10)
       dut.io.lsuQueueCapacity.poke(0.U)
-      dut.io.lsuStall.expect(true.B)
+      lsuStall.expect(true.B)
 
       // Vector state and queue capacity are separate blockers
       dut.io.rvvState.get.valid.poke(false.B)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
       dut.io.rvvState.get.valid.poke(true.B)
       dut.io.rvvState.get.bits.vill.poke(true.B)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
       dut.io.rvvState.get.bits.vill.poke(false.B)
       dut.io.rvvQueueCapacity.get.poke(0.U)
-      dut.io.lsuStall.expect(false.B)
+      lsuStall.expect(false.B)
       dut.io.rvvQueueCapacity.get.poke(1.U)
-      dut.io.lsuStall.expect(true.B)
+      lsuStall.expect(true.B)
     }
   }
 }

@@ -361,7 +361,7 @@ class Dispatch(p: Parameters) extends Module {
     // LSU interface.
     val lsu              = Vec(p.instructionLanes, Decoupled(new LsuCmd(p)))
     val lsuQueueCapacity = Input(UInt(3.W))
-    val lsuStall         = Output(Bool())
+    val lsuStall         = Option.when(p.enableMemoryCounters)(Output(Bool()))
 
     // Multiplier interface.
     val mlu = Vec(p.instructionLanes, Decoupled(new MluCmd(p)))
@@ -996,14 +996,16 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
     lastReady(i + 1) := dispatched.reduce(_ || _)
   }
 
-  io.lsuStall := (0 until p.instructionLanes)
-    .map(i =>
-      lastReady(i) && // ignore blockage when older lanes could not dispatch anyway
-        canDispatchExceptLsuCapacity(i) && // other eligibility checks passed
-        isLsu(i) &&                        // is LSU instruction
-        !lsuInterlock(i)                   // no LSU queue slot available for this lane
-    )
-    .reduce(_ || _)
+  if (p.enableMemoryCounters) {
+    io.lsuStall.get := (0 until p.instructionLanes)
+      .map(i =>
+        lastReady(i) && // ignore blockage when older lanes could not dispatch anyway
+          canDispatchExceptLsuCapacity(i) && // other eligibility checks passed
+          isLsu(i) &&                        // is LSU instruction
+          !lsuInterlock(i)                   // no LSU queue slot available for this lane
+      )
+      .reduce(_ || _)
+  }
 
   for (i <- 0 until p.instructionLanes) {
     io.inst(i).ready := lastReady(i + 1)

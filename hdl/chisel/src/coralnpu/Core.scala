@@ -100,6 +100,8 @@ object EmitCore extends App {
       p.xlen = arg.split("=")(1).toInt
     } else if (arg.startsWith("--numProgrammableHpmCounters=")) {
       p.numProgrammableHpmCounters = arg.split("=")(1).toInt
+    } else if (arg.startsWith("--enableMemoryCounters=")) {
+      p.enableMemoryCounters = arg.split("=")(1).toBoolean
     } else if (arg.startsWith("--moduleName")) {
       moduleName = arg.split("=")(1)
     } else if (arg.startsWith("--fetchDataBits")) {

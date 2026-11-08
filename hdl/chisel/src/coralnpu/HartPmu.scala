@@ -38,7 +38,7 @@ class MemoryPerfEvents(p: Parameters) extends Bundle {
 
 class HartPmuEvents(p: Parameters) extends Bundle {
   val nRetired = UInt(BitWidthForInt(p.retirementLanes))
-  val memory   = new MemoryPerfEvents(p)
+  val memory   = Option.when(p.enableMemoryCounters)(new MemoryPerfEvents(p))
 }
 
 class PmuCsrRequest(p: Parameters) extends Bundle {
@@ -90,9 +90,14 @@ class HartPmu(p: Parameters) extends Module {
   val write   = request.valid && request.write && address.writable
 
   // Append subsystem event tables here, IDs drive both validation and increment selection
+  val memory_event_increments = if (p.enableMemoryCounters) {
+    MemoryHpmEvent.increments(io.events.memory.get)
+  } else {
+    Seq.empty
+  }
   val event_increments =
     Seq(0 -> 0.U) ++ // event 0 (disabled)
-      MemoryHpmEvent.increments(io.events.memory)
+      memory_event_increments
   val event_ids = event_increments.map(_._1)
   require(event_ids.distinct.size == event_ids.size, "PMU event IDs must be unique")
   require(event_ids.forall(_ >= 0), "PMU event IDs must be nonnegative")

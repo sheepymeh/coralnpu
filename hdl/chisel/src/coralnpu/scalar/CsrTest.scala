@@ -51,13 +51,14 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
     dut.io.bru.in.fault.poke(false.B)
     dut.io.bru.in.wfi.poke(false.B)
     dut.counters.nRetired.poke(0.U)
-    dut.counters.memory.lsuRequests.poke(0.U)
-    dut.counters.memory.lsuStallCycles.poke(false.B)
-    dut.counters.memory.dtcmReadBytes.poke(0.U)
-    dut.counters.memory.dtcmWriteBytes.poke(0.U)
-    dut.counters.memory.externalWaitCycles.poke(false.B)
-    dut.counters.memory.externalReadBytes.poke(0.U)
-    dut.counters.memory.externalWriteBytes.poke(0.U)
+    val events = dut.counters.memory.get
+    events.lsuRequests.poke(0.U)
+    events.lsuStallCycles.poke(false.B)
+    events.dtcmReadBytes.poke(0.U)
+    events.dtcmWriteBytes.poke(0.U)
+    events.externalWaitCycles.poke(false.B)
+    events.externalReadBytes.poke(0.U)
+    events.externalWriteBytes.poke(0.U)
     dut.io.dm.debug_req.poke(false.B)
     dut.io.dm.resume_req.poke(false.B)
     dut.io.dm.current_pc.poke(0.U)
@@ -232,11 +233,12 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
           assert(access_csr(dut, selector, Some(MemoryHpmEvent.LSU_REQUESTS)) == event_id)
           assert(access_csr(dut, selector) == event_id)
           if (implemented) {
-            val slot = low.litValue.toInt & 31
+            val events = dut.counters.memory.get
+            val slot   = low.litValue.toInt & 31
             access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(inhibit_mask.clearBit(slot)))
-            dut.counters.memory.lsuRequests.poke(3.U)
+            events.lsuRequests.poke(3.U)
             dut.clock.step(2)
-            dut.counters.memory.lsuRequests.poke(0.U)
+            events.lsuRequests.poke(0.U)
             assert(access_csr(dut, alias) == ((cleared + 6) & word_mask))
             access_csr(dut, CsrAddress.MCOUNTINHIBIT, Some(inhibit_mask))
           }
