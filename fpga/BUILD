@@ -196,6 +196,20 @@ coralnpu_v2_binary(
 )
 
 coralnpu_v2_binary(
+    name = "dma_throughput_test",
+    srcs = ["sw/dma_throughput_test.cc"],
+    dtcm_size_kbytes = 256,
+    enable_vmem = False,
+    heap_size = "1K",
+    itcm_size_kbytes = 16,
+    stack_size_bytes = 4096,
+    deps = [
+        ":dma",
+        "//sw/utils",
+    ],
+)
+
+coralnpu_v2_binary(
     name = "clk_test",
     srcs = ["sw/clk_test.c"],
     deps = [
