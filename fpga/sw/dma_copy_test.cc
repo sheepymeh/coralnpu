@@ -12,8 +12,8 @@ constexpr unsigned kBulkRepeats  = 32;
 constexpr unsigned kDmaWidthLog2 = 4;  // 16-byte transfers
 constexpr unsigned kGuardWords   = 32;
 constexpr unsigned kMaxBytes     = 16 * 1024;
-constexpr unsigned kNumCases     = 4 * (sizeof(kSizes) / sizeof(kSizes[0]) + 1);
 constexpr unsigned kSizes[]      = {16, 256, 4096, kMaxBytes};
+constexpr unsigned kNumCases     = 4 * (sizeof(kSizes) / sizeof(kSizes[0]) + 1);
 constexpr unsigned kTrials       = 3;
 
 enum class CopyMethod : uint32_t { Lsu, Dma };
