@@ -40,6 +40,7 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
 
   "Memory events and PMU update ordering" in {
     val p = new Parameters
+    p.numProgrammableHpmCounters = 4
     simulate(new HartPmu(p)) { dut =>
       init_dut(dut)
 
@@ -133,6 +134,7 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
   for (xlen <- Seq(32, 64)) {
     s"RV$xlen PMU retirement forwarding and reset" in {
       val p = new Parameters(xlen = xlen)
+      p.numProgrammableHpmCounters = 1
       simulate(new HartPmu(p)) { dut =>
         init_dut(dut)
 

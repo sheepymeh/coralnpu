@@ -5,7 +5,7 @@ The counters are implemented in `HartPmu`, alongside appropriate events.
 
 ## Configuration
 
-Four 64-bit HPM counters are implemented by default, starting at `mhpmcounter3`.
+No programmable HPM counters are implemented by default.
 Set `Parameters.numProgrammableHpmCounters` or `EmitCore --numProgrammableHpmCounters=N` to select 0-29
 contiguous slots. Each `mhpmevent` selects one event from the table below.
 

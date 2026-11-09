@@ -77,7 +77,7 @@ class Parameters(var m: Seq[MemoryRegion] = Seq(), val hartId: Int = 0, var xlen
   val instructionLanes   = 4
 
   // mhpmcounter3 onward, excluding mcycle and minstret
-  var numProgrammableHpmCounters = 4
+  var numProgrammableHpmCounters = 0
   var enableMemoryCounters       = true
 
   // Enable extra logic for verification purposes.
