@@ -21,6 +21,9 @@ contiguous slots. Each `mhpmevent` selects one event from the table below.
 | 5 | External data-bus wait cycles | One per pending external request cycle with `ready=0` |
 | 6 | External data-bus read bytes | Requested bytes per completed read |
 | 7 | External data-bus write bytes | Enabled bytes per completed write according to mask |
+| 8 | LSU bus transfers | # LSU transactions accepted by the bus, not necessarily complete |
+| 9 | LSU bus wait cycles | Time taken for LSU bus to complete the transaction |
+| 10 | LSU backlog with idle bus | LSU internal stall, when the the queue is non-empty but the bus is idle, i.e. LSU performing internal processing |
 
 ### LSU stall cycles
 
@@ -31,10 +34,13 @@ after older memory instructions.
 
 ### Counting boundaries
 
-Requests count once per instruction, including later-flushed requests. `FENCE.I`
-and `WFI` flush operations are excluded. Bus transfers count on `fire` (`valid && ready`).
-External events exclude internal CSRs and include MMIO and error completions.
-Wait cycles exclude completion and can overlap execution or LSU stalls.
+- Requests count once per instruction, including later-flushed requests. `FENCE.I` and `WFI` flush operations are excluded.
+- Bus transfers count on `fire` (`valid && ready`).
+- External events exclude internal CSRs and include MMIO and error completions.
+- Wait cycles exclude completion and can overlap execution or LSU stalls.
+- LSU bus events cover all LSU destinations (ibus, dbus, ebus)
+- Backlog counts a nonempty LSU queue with no bus request, e.g.
+  response processing, operand waits and writeback. It does not measure total LSU busy time.
 
 ## Usage
 
@@ -44,9 +50,11 @@ Wait cycles exclude completion and can overlap execution or LSU stalls.
 
 ## Validation
 
-```bash
+```sh
 bazel test \
   //hdl/chisel/src/coralnpu:coralnpu_hart_pmu_tests \
   //hdl/chisel/src/coralnpu:coralnpu_csr_tests \
-  //hdl/chisel/src/coralnpu:coralnpu_decode_tests
+  //hdl/chisel/src/coralnpu:coralnpu_decode_tests \
+  //tests/cocotb:lsu_cycle_bench_test \
+  //tests/cocotb:lsu_cycle_bench_counters_test --build_tests_only
 ```

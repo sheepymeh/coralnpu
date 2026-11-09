@@ -19,6 +19,12 @@ import chisel3.util._
 import common._
 import coralnpu.rvv._
 
+class LsuPerfEvents extends Bundle {
+  val busTransfers         = Bool()
+  val busWaitCycles        = Bool()
+  val backlogBusIdleCycles = Bool()
+}
+
 class Lsu(p: Parameters) extends Module {
   val io = IO(new Bundle {
     // Decode cycle.
@@ -54,6 +60,7 @@ class Lsu(p: Parameters) extends Module {
     val active        = Output(Bool())
     val storeComplete = Output(Valid(UInt(p.programCounterBits.W)))
     val pipelineFlush = Input(Bool())
+    val memoryPerf    = Option.when(p.enableMemoryCounters)(Output(new LsuPerfEvents))
   })
 }
 
@@ -2103,6 +2110,13 @@ class LsuV3(p: Parameters) extends Lsu(p) {
       use_ebus -> io.ebus.dbus.ready
     )
   )
+
+  if (p.enableMemoryCounters) {
+    val events = io.memoryPerf.get
+    events.busTransfers         := slot.io.busReq.fire
+    events.busWaitCycles        := slot.io.busReq.valid && !slot.io.busReq.ready
+    events.backlogBusIdleCycles := slot.io.uop.valid && !slot.io.busReq.valid
+  }
 
   io.rd     := slot.io.intWriteback
   io.rd_flt := slot.io.floatWriteback.getOrElse(MakeInvalid(new FloatRegfileWriteDataIO(p)))

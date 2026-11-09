@@ -220,6 +220,10 @@ class SCore(p: Parameters) extends Module {
       )
     )
     memoryEvents.lsuStallCycles := dispatch.io.lsuStall.get
+    val lsuEvents = lsu.io.memoryPerf.get
+    memoryEvents.lsuBusTransfers         := lsuEvents.busTransfers
+    memoryEvents.lsuBusWaitCycles        := lsuEvents.busWaitCycles
+    memoryEvents.lsuBacklogBusIdleCycles := lsuEvents.backlogBusIdleCycles
 
     val dtcmAccepted = io.dbus.fire
     // Reads always fetch full rows including subword loads

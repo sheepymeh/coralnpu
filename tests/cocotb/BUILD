@@ -761,6 +761,11 @@ coralnpu_v2_binary(
     ],
 )
 
+coralnpu_v2_binary(
+    name = "lsu_cycle_bench",
+    srcs = ["lsu_cycle_bench.cc"],
+)
+
 # This test is used for baseline vector power analysis.
 coralnpu_v2_binary(
     name = "nop_test",
@@ -946,6 +951,40 @@ cocotb_test_suite(
     vcs_test_args = VCS_TEST_ARGS,
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_axi_cc_library_verilog"],
     verilator_model = ":rvv_core_mini_axi_model",
+)
+
+LSU_CYCLE_BENCH_TEST_KWARGS = {
+    "hdl_toplevel": "RvvCoreMiniAxi",
+    "waves": False,
+    "seed": "42",
+    "test_module": ["lsu_cycle_bench_test.py"],
+    "deps": [
+        "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+        "@bazel_tools//tools/python/runfiles",
+    ],
+    "data": [":lsu_cycle_bench.elf"],
+    "size": "medium",
+}
+
+cocotb_test_suite(
+    name = "lsu_cycle_bench_test",
+    simulators = ["verilator"],
+    testcases = ["lsu_cycle_bench_test"],
+    testcases_vname = "LSU_CYCLE_BENCH_TESTCASES",
+    tests_kwargs = LSU_CYCLE_BENCH_TEST_KWARGS,
+    verilator_model = ":rvv_core_mini_axi_model",
+)
+
+cocotb_test_suite(
+    name = "lsu_cycle_bench_counters_test",
+    simulators = ["verilator"],
+    testcases = ["lsu_cycle_bench_test"],
+    testcases_vname = "LSU_CYCLE_BENCH_TESTCASES",
+    tests_kwargs = dict(
+        LSU_CYCLE_BENCH_TEST_KWARGS,
+        extra_env = ["EXPECT_MEMORY_COUNTERS=1"],
+    ),
+    verilator_model = "//tests/cocotb/lsu_cycle_bench_model:model",
 )
 
 cocotb_test_suite(

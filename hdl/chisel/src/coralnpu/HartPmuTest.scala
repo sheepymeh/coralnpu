@@ -20,6 +20,9 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
     events.externalWaitCycles.poke(false.B)
     events.externalReadBytes.poke(0.U)
     events.externalWriteBytes.poke(0.U)
+    events.lsuBusTransfers.poke(false.B)
+    events.lsuBusWaitCycles.poke(false.B)
+    events.lsuBacklogBusIdleCycles.poke(false.B)
     dut.clock.step()
   }
 
@@ -63,21 +66,27 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
       events.externalWaitCycles.poke(true.B)
       events.externalReadBytes.poke(5.U)
       events.externalWriteBytes.poke(9.U)
+      events.lsuBusTransfers.poke(true.B)
+      events.lsuBusWaitCycles.poke(true.B)
+      events.lsuBacklogBusIdleCycles.poke(true.B)
       val inhibit_all = 0x7d
       val enable_hpm3 = 0x75
       write_csr(dut, CsrAddress.MCOUNTINHIBIT, inhibit_all)
 
       // Disabled and unsupported selectors must not accumulate active events
       val cases = Seq(
-        MemoryHpmEvent.NONE                 -> 0,
-        MemoryHpmEvent.LSU_REQUESTS         -> 3,
-        MemoryHpmEvent.LSU_STALL_CYCLES     -> 1,
-        MemoryHpmEvent.DTCM_READ_BYTES      -> p.lsuDataBytes,
-        MemoryHpmEvent.DTCM_WRITE_BYTES     -> 17,
-        MemoryHpmEvent.EXTERNAL_WAIT_CYCLES -> 1,
-        MemoryHpmEvent.EXTERNAL_READ_BYTES  -> 5,
-        MemoryHpmEvent.EXTERNAL_WRITE_BYTES -> 9,
-        0xff                                -> 0
+        MemoryHpmEvent.NONE                        -> 0,
+        MemoryHpmEvent.LSU_REQUESTS                -> 3,
+        MemoryHpmEvent.LSU_STALL_CYCLES            -> 1,
+        MemoryHpmEvent.DTCM_READ_BYTES             -> p.lsuDataBytes,
+        MemoryHpmEvent.DTCM_WRITE_BYTES            -> 17,
+        MemoryHpmEvent.EXTERNAL_WAIT_CYCLES        -> 1,
+        MemoryHpmEvent.EXTERNAL_READ_BYTES         -> 5,
+        MemoryHpmEvent.EXTERNAL_WRITE_BYTES        -> 9,
+        MemoryHpmEvent.LSU_BUS_TRANSFERS           -> 1,
+        MemoryHpmEvent.LSU_BUS_WAIT_CYCLES         -> 1,
+        MemoryHpmEvent.LSU_BACKLOG_BUS_IDLE_CYCLES -> 1,
+        0xff                                       -> 0
       )
       for ((id, amount) <- cases) {
         write_csr(dut, CsrAddress.MHPMEVENT3, id)

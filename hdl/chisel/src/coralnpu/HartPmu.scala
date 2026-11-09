@@ -5,35 +5,44 @@ import chisel3.util._
 import common.{BitWidthForInt, MuxOR, MuxUpTo1H}
 
 object MemoryHpmEvent {
-  val NONE                 = 0
-  val LSU_REQUESTS         = 1
-  val LSU_STALL_CYCLES     = 2
-  val DTCM_READ_BYTES      = 3
-  val DTCM_WRITE_BYTES     = 4
-  val EXTERNAL_WAIT_CYCLES = 5
-  val EXTERNAL_READ_BYTES  = 6
-  val EXTERNAL_WRITE_BYTES = 7
+  val NONE                        = 0
+  val LSU_REQUESTS                = 1
+  val LSU_STALL_CYCLES            = 2
+  val DTCM_READ_BYTES             = 3
+  val DTCM_WRITE_BYTES            = 4
+  val EXTERNAL_WAIT_CYCLES        = 5
+  val EXTERNAL_READ_BYTES         = 6
+  val EXTERNAL_WRITE_BYTES        = 7
+  val LSU_BUS_TRANSFERS           = 8
+  val LSU_BUS_WAIT_CYCLES         = 9
+  val LSU_BACKLOG_BUS_IDLE_CYCLES = 10
 
   def increments(events: MemoryPerfEvents): Seq[(Int, UInt)] = Seq(
-    LSU_REQUESTS         -> events.lsuRequests,
-    LSU_STALL_CYCLES     -> events.lsuStallCycles.asUInt,
-    DTCM_READ_BYTES      -> events.dtcmReadBytes,
-    DTCM_WRITE_BYTES     -> events.dtcmWriteBytes,
-    EXTERNAL_WAIT_CYCLES -> events.externalWaitCycles.asUInt,
-    EXTERNAL_READ_BYTES  -> events.externalReadBytes,
-    EXTERNAL_WRITE_BYTES -> events.externalWriteBytes
+    LSU_REQUESTS                -> events.lsuRequests,
+    LSU_STALL_CYCLES            -> events.lsuStallCycles.asUInt,
+    DTCM_READ_BYTES             -> events.dtcmReadBytes,
+    DTCM_WRITE_BYTES            -> events.dtcmWriteBytes,
+    EXTERNAL_WAIT_CYCLES        -> events.externalWaitCycles.asUInt,
+    EXTERNAL_READ_BYTES         -> events.externalReadBytes,
+    EXTERNAL_WRITE_BYTES        -> events.externalWriteBytes,
+    LSU_BUS_TRANSFERS           -> events.lsuBusTransfers.asUInt,
+    LSU_BUS_WAIT_CYCLES         -> events.lsuBusWaitCycles.asUInt,
+    LSU_BACKLOG_BUS_IDLE_CYCLES -> events.lsuBacklogBusIdleCycles.asUInt
   )
 }
 
 // Per-cycle increments, Bool events add 0/1 without local state
 class MemoryPerfEvents(p: Parameters) extends Bundle {
-  val lsuRequests        = UInt(BitWidthForInt(p.instructionLanes))
-  val lsuStallCycles     = Bool()
-  val dtcmReadBytes      = UInt(p.dbusSize.W)
-  val dtcmWriteBytes     = UInt(p.dbusSize.W)
-  val externalWaitCycles = Bool()
-  val externalReadBytes  = UInt(p.dbusSize.W)
-  val externalWriteBytes = UInt(p.dbusSize.W)
+  val lsuRequests             = UInt(BitWidthForInt(p.instructionLanes))
+  val lsuStallCycles          = Bool()
+  val dtcmReadBytes           = UInt(p.dbusSize.W)
+  val dtcmWriteBytes          = UInt(p.dbusSize.W)
+  val externalWaitCycles      = Bool()
+  val externalReadBytes       = UInt(p.dbusSize.W)
+  val externalWriteBytes      = UInt(p.dbusSize.W)
+  val lsuBusTransfers         = Bool()
+  val lsuBusWaitCycles        = Bool()
+  val lsuBacklogBusIdleCycles = Bool()
 }
 
 class HartPmuEvents(p: Parameters) extends Bundle {
