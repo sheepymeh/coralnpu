@@ -282,6 +282,7 @@ class PmuCsrDecodeSpec extends AnyFreeSpec with ChiselSim {
 
 class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
   val p = new Parameters()
+  p.enableMemoryCounters = true
 
   private def load(rd: Int): BigInt = (10 << 15) | (2 << 12) | (rd << 7) | 0x03
   private def add(rd: Int): BigInt  = (rd << 7) | 0x13
@@ -289,6 +290,20 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
   private def instruction(dut: DispatchV2, lane: Int, word: BigInt): Unit = {
     dut.io.inst(lane).valid.poke(true.B)
     dut.io.inst(lane).bits.inst.poke(word.U)
+  }
+
+  "Disabling memory counters preserves LSU backpressure" in {
+    val parameters = new Parameters()
+    parameters.enableMemoryCounters = false
+    simulate(new DispatchV2(parameters)) { dut =>
+      DispatchTestUtils.initialize(dut, parameters)
+      assert(dut.io.lsuStall.isEmpty)
+      instruction(dut, 0, load(1))
+      dut.io.lsuQueueCapacity.poke(0.U)
+      dut.io.inst(0).ready.expect(false.B)
+      dut.io.lsuQueueCapacity.poke(1.U)
+      dut.io.inst(0).ready.expect(true.B)
+    }
   }
 
   "LSU capacity stall attribution" in {
@@ -373,6 +388,7 @@ class DispatchLsuStallSpec extends AnyFreeSpec with ChiselSim {
 
   "LSU stalls exclude vector configuration and vector queue stalls" in {
     val vector_parameters = new Parameters()
+    vector_parameters.enableMemoryCounters = true
     vector_parameters.enableRvv = true
     simulate(new DispatchV2(vector_parameters)) { dut =>
       val lsuStall = dut.io.lsuStall.get

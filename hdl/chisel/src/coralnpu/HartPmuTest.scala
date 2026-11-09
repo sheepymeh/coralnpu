@@ -12,17 +12,18 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
     dut.io.csr.request.operand.poke(0.U)
     dut.io.csr.request.write.poke(false.B)
     dut.io.events.nRetired.poke(0.U)
-    val events = dut.io.events.memory.get
-    events.lsuRequests.poke(0.U)
-    events.lsuStallCycles.poke(false.B)
-    events.dtcmReadBytes.poke(0.U)
-    events.dtcmWriteBytes.poke(0.U)
-    events.externalWaitCycles.poke(false.B)
-    events.externalReadBytes.poke(0.U)
-    events.externalWriteBytes.poke(0.U)
-    events.lsuBusTransfers.poke(false.B)
-    events.lsuBusWaitCycles.poke(false.B)
-    events.lsuBacklogBusIdleCycles.poke(false.B)
+    dut.io.events.memory.foreach { events =>
+      events.lsuRequests.poke(0.U)
+      events.lsuStallCycles.poke(false.B)
+      events.dtcmReadBytes.poke(0.U)
+      events.dtcmWriteBytes.poke(0.U)
+      events.externalWaitCycles.poke(false.B)
+      events.externalReadBytes.poke(0.U)
+      events.externalWriteBytes.poke(0.U)
+      events.lsuBusTransfers.poke(false.B)
+      events.lsuBusWaitCycles.poke(false.B)
+      events.lsuBacklogBusIdleCycles.poke(false.B)
+    }
     dut.clock.step()
   }
 
@@ -44,6 +45,7 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
   "Memory events and PMU update ordering" in {
     val p = new Parameters
     p.numProgrammableHpmCounters = 4
+    p.enableMemoryCounters = true
     simulate(new HartPmu(p)) { dut =>
       init_dut(dut)
 
@@ -137,6 +139,37 @@ class HartPmuSpec extends AnyFreeSpec with ChiselSim {
       dut.reset.poke(false.B)
       assert(read_csr(CsrAddress.MHPMEVENT3) == 0)
       assert(hpm == 0)
+    }
+  }
+
+  "Disabling memory events preserves generic counters" in {
+    val p = new Parameters
+    p.numProgrammableHpmCounters = 1
+    p.enableMemoryCounters = false
+    assert(!p.augmentId(1).enableMemoryCounters)
+    assert(
+      EmitParametersHeader(p)
+        .replaceAll("\\s+", " ")
+        .contains("#define KP_enableMemoryCounters false")
+    )
+    simulate(new HartPmu(p)) { dut =>
+      init_dut(dut)
+      assert(dut.io.events.memory.isEmpty)
+
+      // Every memory selector legalizes to disabled event 0
+      for (event <- 1 to MemoryHpmEvent.LSU_BACKLOG_BUS_IDLE_CYCLES) {
+        write_csr(dut, CsrAddress.MHPMEVENT3, event)
+        dut.io.csr.response.readData.expect(0.U)
+      }
+
+      // HPM storage remains software-writable without event sources
+      write_csr(dut, CsrAddress.MHPMCOUNTER3, 99)
+      val before = dut.io.csr.status.cycle.peek().litValue
+      dut.io.events.nRetired.poke(2.U)
+      dut.clock.step(3)
+      dut.io.csr.response.readData.expect(99.U)
+      dut.io.csr.status.cycle.expect((before + 3).U)
+      dut.io.csr.status.instret.expect(6.U)
     }
   }
 

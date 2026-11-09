@@ -51,17 +51,18 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
     dut.io.bru.in.fault.poke(false.B)
     dut.io.bru.in.wfi.poke(false.B)
     dut.counters.nRetired.poke(0.U)
-    val events = dut.counters.memory.get
-    events.lsuRequests.poke(0.U)
-    events.lsuStallCycles.poke(false.B)
-    events.dtcmReadBytes.poke(0.U)
-    events.dtcmWriteBytes.poke(0.U)
-    events.externalWaitCycles.poke(false.B)
-    events.externalReadBytes.poke(0.U)
-    events.externalWriteBytes.poke(0.U)
-    events.lsuBusTransfers.poke(false.B)
-    events.lsuBusWaitCycles.poke(false.B)
-    events.lsuBacklogBusIdleCycles.poke(false.B)
+    dut.counters.memory.foreach { events =>
+      events.lsuRequests.poke(0.U)
+      events.lsuStallCycles.poke(false.B)
+      events.dtcmReadBytes.poke(0.U)
+      events.dtcmWriteBytes.poke(0.U)
+      events.externalWaitCycles.poke(false.B)
+      events.externalReadBytes.poke(0.U)
+      events.externalWriteBytes.poke(0.U)
+      events.lsuBusTransfers.poke(false.B)
+      events.lsuBusWaitCycles.poke(false.B)
+      events.lsuBacklogBusIdleCycles.poke(false.B)
+    }
     dut.io.dm.debug_req.poke(false.B)
     dut.io.dm.resume_req.poke(false.B)
     dut.io.dm.current_pc.poke(0.U)
@@ -177,6 +178,7 @@ class CsrSpec extends AnyFreeSpec with ChiselSim {
     s"RV$xlen HPM register bank with $num_programmable_counters programmable counters" in {
       val parameters = new Parameters(xlen = xlen)
       parameters.numProgrammableHpmCounters = num_programmable_counters
+      parameters.enableMemoryCounters = true
       parameters.enableFloat = true
       parameters.enableRvv = true
       parameters.enableVerification = true

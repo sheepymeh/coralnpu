@@ -11,6 +11,9 @@ contiguous slots. Each `mhpmevent` selects one event from the table below.
 
 ## Memory events
 
+Memory events are disabled by default. Set `Parameters.enableMemoryCounters = true`
+or `EmitCore --enableMemoryCounters=true` to enable.
+
 | ID | Event | Increment |
 | --- | --- | --- |
 | 0 | Disabled | 0 |
