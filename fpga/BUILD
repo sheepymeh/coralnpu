@@ -186,6 +186,16 @@ cc_library(
 )
 
 coralnpu_v2_binary(
+    name = "dma_copy_test",
+    srcs = ["sw/dma_copy_test.cc"],
+    stack_size_bytes = 256,
+    deps = [
+        ":dma",
+        "//sw/utils",
+    ],
+)
+
+coralnpu_v2_binary(
     name = "clk_test",
     srcs = ["sw/clk_test.c"],
     deps = [

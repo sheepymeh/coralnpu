@@ -23,7 +23,17 @@
 
 uint32_t dma_get_base_addr(void) { return DMA_BASE; }
 
+static void dma_fence(void) {
+#if defined(__riscv)
+  __asm__ volatile("fence iorw, iorw" ::: "memory");
+#else
+  __asm__ volatile("" ::: "memory");
+#endif
+}
+
 void dma_start(uint32_t desc_addr) {
+  // Publish descriptors and source data before starting the engine
+  dma_fence();
   REG32(DMA_DESC_ADDR) = desc_addr;
   REG32(DMA_CTRL) = 0x3;
 }
@@ -34,7 +44,11 @@ int dma_wait_done(void) {
   // Bounded poll to avoid hanging forever
   for (int i = 0; i < 1000000; i++) {
     uint32_t s = dma_get_status();
-    if (s & 0x2) return (s & 0x4) ? -1 : 0;  // done: check error
+    if (s & 0x2) {
+      // Observe DMA writes before reading the destination
+      dma_fence();
+      return (s & 0x4) ? -1 : 0;
+    }
   }
   return -2;  // timeout
 }
